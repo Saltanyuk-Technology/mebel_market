@@ -1,0 +1,4 @@
+asyncpg==0.31.0
+Hypercorn==0.18.0
+Quart==0.20.0
+rich==14.3.3
