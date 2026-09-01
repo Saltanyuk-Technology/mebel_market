@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#211b17" />
+    <title>Редактор мебели — Mebel Business</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="http://127.0.0.1:8080/company" aria-label="Mebel Business — в кабинет">
+          <span class="brand-mark">m</span>
+          <div><strong>mebel <em>business</em></strong><small>Редактор мебели</small></div>
+        </a>
+        <div class="toolbar">
+          <button id="undo" title="Отменить">↶</button>
+          <button id="redo" title="Повторить">↷</button>
+          <button id="duplicate" title="Дублировать">Дублировать</button>
+          <div class="ruler-control">
+            <button id="ruler" title="Измерить расстояние между двумя точками">Линейка</button>
+            <button id="ruler-settings-toggle" class="ruler-settings-toggle" type="button" title="Настройки линейки" aria-label="Настройки линейки" aria-expanded="false">⚙</button>
+            <section id="ruler-settings" class="ruler-settings" aria-label="Настройки линейки" hidden>
+              <div class="ruler-settings-heading"><span>Линейка</span><strong>Настройки</strong></div>
+              <label><span><b>Привязка к поверхностям</b><small>Точки ставятся на деталях</small></span><input id="ruler-surface-snap" type="checkbox" checked /></label>
+              <label><span><b>Сетка 1 мм</b><small>Округлять координаты точек</small></span><input id="ruler-grid-snap" type="checkbox" checked /></label>
+              <label><span><b>Фиксация по осям</b><small>Shift — строго X, Y или Z</small></span><input id="ruler-axis-lock" type="checkbox" checked /></label>
+            </section>
+          </div>
+          <label class="selection-pin" title="Не менять текущий выбор при кликах по другим деталям">
+            <input id="pin-selection" type="checkbox" />
+            <span>Закрепить выделение</span>
+          </label>
+          <label class="selection-pin dimension-toggle" title="Показывать длину, ширину и толщину каждой мебельной панели">
+            <input id="show-all-dimensions" type="checkbox" />
+            <span>Отображать размеры</span>
+          </label>
+          <button id="delete" class="danger" title="Удалить">Удалить</button>
+          <button id="save-project" class="save-project" type="button" title="Сохранить проект">Сохранить</button>
+        </div>
+        <div class="view-switch">
+          <button id="view-top">Сверху</button>
+          <button id="view-3d" class="active">3D</button>
+        </div>
+        <nav class="platform-actions" aria-label="Навигация платформы">
+          <a href="http://127.0.0.1:8080/company">← В кабинет</a>
+          <a class="tool-link" href="http://127.0.0.1:5173/constructor/" target="_blank" rel="noopener noreferrer">Конструктор помещения</a>
+        </nav>
+      </header>
+
+      <main class="workspace">
+        <aside class="library">
+          <span class="eyebrow">Детали</span>
+          <h1>Что добавить</h1>
+          <button id="open-add-part" class="part-template">
+            <span class="part-icon shelf-icon"></span>
+            <span><strong>Добавить деталь</strong><small>Материал и размеры</small></span><b>+</b>
+          </button>
+          <button id="open-hardware" class="part-template">
+            <span class="part-icon hardware-icon"></span>
+            <span><strong>Фурнитура</strong><small>Ножки</small></span><b>+</b>
+          </button>
+          <section class="scene-parts" aria-labelledby="scene-parts-title">
+            <div class="scene-parts-heading">
+              <span class="eyebrow">На сцене</span>
+              <b id="scene-parts-count">0</b>
+            </div>
+            <h2 id="scene-parts-title">Все детали</h2>
+            <div id="scene-parts-list" class="scene-parts-list"></div>
+          </section>
+          <section class="hint">
+            <strong>Управление</strong>
+            <p>ЛКМ по пустому месту перемещает сцену, ПКМ вращает, колесо приближает. WASD перемещает камеру. ЛКМ по детали перемещает её по плоскости.</p>
+          </section>
+        </aside>
+
+        <section id="viewport" class="viewport">
+          <canvas id="scene-canvas"></canvas>
+          <div id="dimensions" class="dimensions"></div>
+          <div class="grid-badge">Сетка 1 мм</div>
+          <div id="cursor-badge" class="cursor-badge" hidden></div>
+        </section>
+
+        <aside class="properties">
+          <div class="panel-heading">
+            <div><span class="eyebrow">Редактор</span><h2 id="panel-title">Модель</h2></div>
+            <span id="selection-chip" class="selection-chip">0 деталей</span>
+          </div>
+
+          <div id="empty-properties" class="property-content">
+            <section class="empty-state">
+              <span class="empty-cube">◇</span>
+              <strong>Добавьте первую деталь</strong>
+              <p>Выберите шаблон слева. Все размеры и координаты задаются в миллиметрах.</p>
+            </section>
+          </div>
+
+          <div id="part-properties" class="property-content" hidden>
+            <button id="clear-selection" class="back-button">←</button>
+            <section class="property-section">
+              <h3>Название</h3>
+              <label class="field wide"><input id="part-name" type="text" /></label>
+            </section>
+            <section id="part-type-section" class="property-section">
+              <h3>Тип детали</h3>
+              <label class="field wide">
+                <select id="part-type">
+                  <option value="bottom">Дно</option>
+                  <option value="side">Боковина</option>
+                  <option value="shelf">Полка</option>
+                  <option value="top">Крыша</option>
+                </select>
+              </label>
+            </section>
+            <section class="property-section">
+              <h3>Размеры</h3>
+              <label class="field"><span id="size-x-label">Длина X</span><div><input id="size-x" type="number" min="1" step="1" /><em>мм</em></div></label>
+              <label class="field"><span id="size-y-label">Толщина Y</span><div><input id="size-y" type="number" min="1" step="1" /><em>мм</em></div></label>
+              <label class="field"><span id="size-z-label">Ширина Z</span><div><input id="size-z" type="number" min="1" step="1" /><em>мм</em></div></label>
+            </section>
+            <section class="property-section">
+              <h3>Положение</h3>
+              <label class="field"><span>X</span><div><input id="pos-x" type="number" step="1" /><em>мм</em></div></label>
+              <label class="field"><span>Y от пола</span><div><input id="pos-y" type="number" step="1" /><em>мм</em></div></label>
+              <label class="field"><span>Z</span><div><input id="pos-z" type="number" step="1" /><em>мм</em></div></label>
+            </section>
+            <section class="property-section">
+              <h3>Поворот</h3>
+              <div class="rotate-buttons">
+                <button data-rotate-axis="x">Вертикально<br />по ширине</button>
+                <button data-rotate-axis="z">Вертикально<br />по длине</button>
+                <button data-rotate-axis="y">Повернуть<br />на плоскости</button>
+              </div>
+              <p class="control-note">Перемещение: ЛКМ. Поднять или опустить: Shift + ЛКМ и движение мыши вверх/вниз.</p>
+              <div id="leg-config-actions" class="leg-config-actions" hidden>
+                <button id="open-leg-config" type="button">Настроить ножки</button>
+                <small>Автоматическая установка четырёх ножек снизу</small>
+              </div>
+            </section>
+          </div>
+
+          <div id="multi-properties" class="property-content" hidden>
+            <button id="clear-multi-selection" class="back-button">←</button>
+            <section class="property-section">
+              <h3>Выбранные детали</h3>
+              <div id="multi-list" class="multi-list"></div>
+              <button id="connect-parts" class="connect-parts-button" type="button" hidden>Соединить детали</button>
+            </section>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="statusbar">
+        <span>Шаг <strong>1 мм</strong></span>
+        <span>X <strong id="status-x">0</strong></span>
+        <span>Y <strong id="status-y">0</strong></span>
+        <span>Z <strong id="status-z">0</strong></span>
+        <span class="status-spacer"></span>
+        <span>Деталей <strong id="status-count">0</strong></span>
+      </footer>
+      <div id="toast" class="toast" hidden></div>
+    </div>
+
+    <div id="add-part-modal" class="modal-backdrop" hidden>
+      <form id="add-part-form" class="modal" aria-labelledby="add-part-title">
+        <div class="modal-heading">
+          <div><span class="eyebrow">Новая деталь</span><h2 id="add-part-title">Добавить деталь</h2></div>
+          <button id="close-add-part" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="modal-field">
+            <span>Материал</span>
+            <select id="part-material">
+              <option value="ldsp-16">ЛДСП 16 мм</option>
+              <option value="hdf-4">ХДФ 4 мм</option>
+            </select>
+          </label>
+          <label id="new-part-type-field" class="modal-field new-part-type-field">
+            <span>Тип детали</span>
+            <select id="new-part-type">
+              <option value="bottom">Дно</option>
+              <option value="side">Боковина</option>
+              <option value="shelf" selected>Полка</option>
+              <option value="top">Крыша</option>
+            </select>
+          </label>
+          <div class="modal-size-grid">
+            <label class="modal-field">
+              <span id="new-part-length-label">Длина</span>
+              <div><input id="part-length" type="number" min="1" step="1" value="600" required /><em>мм</em></div>
+            </label>
+            <label class="modal-field">
+              <span>Ширина</span>
+              <div><input id="part-width" type="number" min="1" step="1" value="400" required /><em>мм</em></div>
+            </label>
+          </div>
+          <p id="part-material-note" class="material-note">Толщина детали определяется материалом: 16 мм.</p>
+        </div>
+        <div class="modal-actions">
+          <button id="cancel-add-part" type="button">Отмена</button>
+          <button class="primary-action" type="submit">ОК</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="hardware-modal" class="modal-backdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="hardware-title">
+        <div class="modal-heading">
+          <div><span class="eyebrow">Каталог</span><h2 id="hardware-title">Фурнитура</h2></div>
+          <button id="close-hardware" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <button id="add-leg" class="hardware-choice" type="button">
+            <span class="hardware-preview"><i></i></span>
+            <span><strong>Ножка</strong><small>Площадка Ø57 · высота 100 мм</small></span>
+            <b>+</b>
+          </button>
+        </div>
+        <div class="modal-actions">
+          <button id="cancel-hardware" type="button">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="legs-modal" class="modal-backdrop" hidden>
+      <form id="legs-form" class="modal" aria-labelledby="legs-title">
+        <div class="modal-heading">
+          <div><span class="eyebrow">Дно</span><h2 id="legs-title">Настроить ножки</h2></div>
+          <button id="close-legs" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="modal-field">
+            <span>Отступ от края детали до края ножки</span>
+            <div><input id="legs-inset" type="number" min="0" step="1" value="40" required /><em>мм</em></div>
+          </label>
+          <p class="material-note">Будут установлены четыре ножки в углах дна. Указанный размер считается от края детали до ближайшего внешнего края площадки ножки.</p>
+        </div>
+        <div class="modal-actions">
+          <button id="cancel-legs" type="button">Отмена</button>
+          <button class="primary-action" type="submit">Разместить ножки</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="connection-modal" class="modal-backdrop" hidden>
+      <form id="connection-form" class="modal" aria-labelledby="connection-title">
+        <div class="modal-heading">
+          <div><span class="eyebrow">Крепёж</span><h2 id="connection-title">Соединить детали</h2></div>
+          <button id="close-connection" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="connection-options">
+            <label class="connection-option selected">
+              <input type="radio" name="connection-type" value="confirmat" checked />
+              <span><strong>Конфирматы</strong><small>Две точки крепления</small></span>
+            </label>
+            <label class="connection-option disabled">
+              <input type="radio" name="connection-type" value="minifix" disabled />
+              <span><strong>Минификсы</strong><small>Скоро</small></span>
+            </label>
+          </div>
+          <label class="modal-field connection-inset">
+            <span>Отступ крепления от краёв</span>
+            <div><input id="connection-inset" type="number" min="0" step="1" value="60" required /><em>мм</em></div>
+          </label>
+          <p class="material-note">Конфирматы появятся в двух точках стыка. Шляпки будут показаны на наружной стороне детали, через которую выполняется крепление.</p>
+        </div>
+        <div class="modal-actions">
+          <button id="cancel-connection" type="button">Отмена</button>
+          <button class="primary-action" type="submit">Соединить</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="save-project-modal" class="modal-backdrop" hidden>
+      <form id="save-project-form" class="modal compact-modal" aria-labelledby="save-project-title">
+        <div class="modal-heading">
+          <div><span class="eyebrow">Проект мебели</span><h2 id="save-project-title">Сохранить проект</h2></div>
+          <button id="close-save-project" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="modal-field"><span>Название</span><input id="project-name" maxlength="160" placeholder="Например, Кухня для Анны" /></label>
+          <p class="material-note">Если оставить поле пустым, проект получит название по дате и времени сохранения.</p>
+          <p id="save-project-message" class="modal-message" role="status" hidden></p>
+        </div>
+        <div class="modal-actions">
+          <button id="cancel-save-project" type="button">Отмена</button>
+          <button id="confirm-save-project" class="primary-action" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+    <div id="rename-assembly-modal" class="modal-backdrop" hidden>
+      <form id="rename-assembly-form" class="modal" aria-labelledby="rename-assembly-title">
+        <div class="modal-heading">
+          <div><span class="eyebrow">Сборка</span><h2 id="rename-assembly-title">Переименовать сборку</h2></div>
+          <button id="close-rename-assembly" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="modal-field"><span>Название</span><input id="assembly-name" type="text" maxlength="80" autocomplete="off" required /></label>
+          <p class="material-note">Название сохранится в рабочем пространстве и останется после обновления страницы.</p>
+        </div>
+        <div class="modal-actions">
+          <button id="cancel-rename-assembly" type="button">Отмена</button>
+          <button class="primary-action" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

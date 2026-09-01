@@ -1,0 +1,10 @@
+.new-project-link { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 9px 12px; font-size: 11px; font-weight: 700; }
+.furniture-projects { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.furniture-project { min-height: 170px; padding: 22px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: .2s; }
+.furniture-project:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(51,38,29,.08); }
+.furniture-project > span { color: var(--orange); font-size: 9px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+.furniture-project h3 { margin: 13px 0 7px; font-size: 18px; }
+.furniture-project p { margin: 0; color: var(--muted); font-size: 11px; }
+.furniture-project b { margin-top: auto; font-size: 11px; }
+@media (max-width: 1050px) { .furniture-projects { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 760px) { .furniture-projects { grid-template-columns: 1fr; } }

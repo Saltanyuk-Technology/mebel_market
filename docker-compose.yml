@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: mebel-market-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mebel_market
+      POSTGRES_USER: mebel
+      POSTGRES_PASSWORD: mebel_local_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - mebel_market_postgres:/var/lib/postgresql/data
+      - ./services/user-service/sql/001_users.sql:/docker-entrypoint-initdb.d/001_users.sql:ro
+      - ./services/user-service/sql/002_furniture_projects.sql:/docker-entrypoint-initdb.d/002_furniture_projects.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mebel -d mebel_market"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  mebel_market_postgres:

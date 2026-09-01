@@ -1,4 +1,7 @@
 asyncpg==0.31.0
+bcrypt==3.2.2
 Hypercorn==0.18.0
+passlib==1.7.4
 Quart==0.20.0
 rich==14.3.3
+-e ./libs/airqore_orm

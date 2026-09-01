@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#211b17"><meta name="color-scheme" content="light">
+    <title>Кабинет компании — Mebel</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='company.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='projects.css') }}">
+    <script src="{{ url_for('static', filename='company.js') }}" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="logo" href="/company"><i>m</i><span>mebel</span><small>business</small></a>
+      <nav>
+        <a class="active" href="/company"><span>⌂</span>Обзор</a>
+        <a href="#projects"><span>□</span>Проекты <b>{{ projects|length }}</b></a>
+        <a href="#tools"><span>◇</span>Инструменты</a>
+        <a href="#portfolio"><span>▦</span>Портфолио</a>
+        <a href="#team"><span>○</span>Команда</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <a href="#settings"><span>⚙</span>Настройки</a>
+        <button id="company-logout" type="button"><span>↪</span>Выйти</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <button id="mobile-menu" class="mobile-menu" type="button" aria-label="Открыть меню">☰</button>
+        <div class="breadcrumbs"><span>Кабинет компании</span><b>/</b><strong>Обзор</strong></div>
+        <div class="top-actions"><button class="notification" type="button" aria-label="Уведомления">●</button><div class="user-avatar">{{ user['firstname'][0] | upper }}{{ user['secondname'][0] | upper }}</div><div class="user-copy"><strong>{{ user['firstname'] }} {{ user['secondname'] }}</strong><small>{{ user['email'] }}</small></div></div>
+      </header>
+
+      <div class="content">
+        <section class="welcome">
+          <div><p>Добро пожаловать в Mebel Business</p><h1>{{ user['firstname'] }}, начнём работу?</h1><span>Здесь собраны проекты, инструменты и данные вашей компании.</span></div>
+          <button type="button">Настроить профиль компании <b>→</b></button>
+        </section>
+
+        <section class="setup-card">
+          <div class="setup-copy"><span class="tag">Первый шаг</span><h2>Заполните профиль компании</h2><p>Добавьте название, логотип, описание услуг и регион работы. Заполненный профиль поможет клиентам узнать о вас.</p><div class="progress"><i><b style="width: 20%"></b></i><span>20%</span></div><button type="button">Продолжить настройку →</button></div>
+          <div class="profile-preview"><div class="preview-head"><i>+</i><span><b>Название компании</b><small>Мебель на заказ</small></span></div><div class="preview-lines"><i></i><i></i><i></i></div><div class="preview-tags"><span>Кухни</span><span>Шкафы</span><span>Интерьеры</span></div></div>
+        </section>
+
+        <section class="stats" aria-label="Статистика компании">
+          <article><span>Проекты мебели</span><strong>{{ projects|length }}</strong><small>{{ 'Можно продолжить работу' if projects else 'Создайте первый проект' }}</small></article>
+          <article><span>Работы в портфолио</span><strong>0</strong><small>Добавьте выполненные работы</small></article>
+          <article><span>Участники команды</span><strong>1</strong><small>Вы можете пригласить коллег</small></article>
+        </section>
+
+        <section class="workspace" id="tools">
+          <div class="section-title"><div><span>Рабочее пространство</span><h2>Инструменты компании</h2></div><small>Доступно для роли «Компания»</small></div>
+          <div class="tools-grid">
+            <a class="tool-card constructor" href="http://127.0.0.1:5173/constructor/" target="_blank" rel="noopener noreferrer"><div class="tool-icon"><i></i><i></i><i></i></div><span>Планирование</span><h3>Конструктор помещения</h3><p>Создайте план комнаты, задайте размеры стен, окон и проёмов.</p><b>Открыть инструмент →</b></a>
+            <a class="tool-card editor" href="http://127.0.0.1:5174/editor/?new=1" target="_blank" rel="noopener noreferrer"><div class="tool-icon cube"><i></i><i></i><i></i></div><span>Производство</span><h3>Редактор мебели</h3><p>Собирайте мебель из деталей и задавайте точные размеры для производства.</p><b>Открыть инструмент →</b></a>
+            <article class="tool-card locked"><div class="tool-icon">＋</div><span>Скоро</span><h3>Каталог компании</h3><p>Управление товарами, материалами и мебельными коллекциями.</p><b>В разработке</b></article>
+          </div>
+        </section>
+
+        <section class="recent" id="projects"><div class="section-title"><div><span>Проекты</span><h2>Мои проекты мебели</h2></div><a class="new-project-link" href="http://127.0.0.1:5174/editor/?new=1" target="_blank" rel="noopener noreferrer">Создать мебель</a></div>{% if projects %}<div class="furniture-projects">{% for project in projects %}<a class="furniture-project" href="http://127.0.0.1:5174/editor/?project={{ project['id'] }}" target="_blank" rel="noopener noreferrer"><span>Мебель</span><h3>{{ project['name'] }}</h3><p>Изменён {{ project['updated_at'].strftime('%d.%m.%Y в %H:%M') }}</p><b>Открыть в редакторе →</b></a>{% endfor %}</div>{% else %}<div class="empty-projects"><div>□</div><h3>Проектов пока нет</h3><p>Создайте отдельный корпус или полноценную модель мебели.</p><div><a href="http://127.0.0.1:5173/constructor/" target="_blank" rel="noopener noreferrer">Создать помещение</a><a href="http://127.0.0.1:5174/editor/?new=1" target="_blank" rel="noopener noreferrer">Создать мебель</a></div></div>{% endif %}</section>
+      </div>
+    </main>
+  </body>
+</html>
