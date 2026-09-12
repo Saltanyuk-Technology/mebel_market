@@ -29,6 +29,7 @@
           <button id="toggle-grid" class="tool-button active" aria-pressed="true">Сетка</button>
           <button id="toggle-snap" class="tool-button active" aria-pressed="true">Привязка</button>
         </div>
+        <span id="kitchen-project-title" class="kitchen-project-title" hidden></span>
         <nav class="platform-actions" aria-label="Навигация платформы">
           <a href="http://127.0.0.1:8080/company">← В кабинет</a>
           <a class="tool-link" href="http://127.0.0.1:5174/editor/" target="_blank" rel="noopener noreferrer">Редактор мебели</a>
@@ -56,6 +57,18 @@
           </div>
 
           <div id="room-properties" class="property-content">
+            <section id="project-furniture-section" class="property-section project-furniture" hidden>
+              <div class="project-furniture-heading"><h2>Мебель проекта</h2><button id="refresh-project-furniture" type="button" title="Обновить список">↻</button></div>
+              <p id="project-furniture-empty" class="project-furniture-empty">Сначала создайте элементы мебели внутри этого проекта.</p>
+              <div id="project-furniture-list" class="project-furniture-list"></div>
+              <div id="placement-properties" class="placement-properties" hidden>
+                <strong id="placement-title">Размещение</strong>
+                <label class="field"><span>X</span><div><input id="placement-x" type="number" step="10"><em>мм</em></div></label>
+                <label class="field"><span>Z</span><div><input id="placement-z" type="number" step="10"><em>мм</em></div></label>
+                <label class="field"><span>Поворот</span><div><input id="placement-rotation" type="number" step="1"><em>°</em></div></label>
+                <button id="remove-placement" class="delete-button" type="button">Убрать из помещения</button>
+              </div>
+            </section>
             <section class="property-section element-library">
               <h2>Что добавить</h2>
               <button id="add-wall" class="element-card">

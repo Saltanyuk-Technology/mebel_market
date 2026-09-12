@@ -9,6 +9,16 @@ import { EditorUI } from "./ui/EditorUI.js";
 import { findFreeWallCenter } from "./geometry/polygon.js";
 
 const room = new RoomModel();
+const constructorParams = new URLSearchParams(location.search);
+const kitchenProjectId = constructorParams.get("kitchenProject");
+const workspaceMode = constructorParams.get("mode") === "layout" ? "layout" : "room";
+let kitchenProject = null;
+let projectFurniture = [];
+let placements = [];
+let selectedPlacementId = null;
+let projectSaveTimer = null;
+let loadingProject = false;
+let furnitureDrag = null;
 const ui = new EditorUI();
 const scene = new SceneManager(
   document.getElementById("scene-canvas"),
@@ -28,7 +38,56 @@ controller = new EditorController({
   onCursor: (point, kind, length, event) => ui.updateCursor(point, kind, length, event),
   onToolChange: () => renderAll(),
   onToast: (message) => ui.showToast(message),
+  onFurniturePointerDown: (event, picked) => {
+    const placement = placements.find((item) => item.id === picked.id);
+    const ground = scene.getGroundPoint(event);
+    if (!placement || !ground) return false;
+    selectedPlacementId = placement.id;
+    furnitureDrag = {
+      placement,
+      offsetX: placement.xMm - ground.xMm,
+      offsetZ: placement.zMm - ground.zMm,
+    };
+    scene.setControlsEnabled(false);
+    scene.canvas.setPointerCapture?.(event.pointerId);
+    renderAll();
+    return true;
+  },
+  onFurniturePointerMove: (event) => {
+    if (!furnitureDrag) return false;
+    const ground = scene.getGroundPoint(event);
+    if (!ground) return true;
+    const step = room.snapEnabled ? room.gridStepMm : 10;
+    furnitureDrag.placement.xMm = Math.round((ground.xMm + furnitureDrag.offsetX) / step) * step;
+    furnitureDrag.placement.zMm = Math.round((ground.zMm + furnitureDrag.offsetZ) / step) * step;
+    scene.syncFurniture(projectFurniture, placements, selectedPlacementId);
+    renderProjectFurniture();
+    return true;
+  },
+  onFurniturePointerUp: () => {
+    if (!furnitureDrag) return false;
+    furnitureDrag = null;
+    scene.setControlsEnabled(controller.tool !== "draw");
+    renderAll();
+    return true;
+  },
 });
+controller.roomEditingEnabled = workspaceMode === "room";
+
+if (kitchenProjectId) {
+  const projectHome = `http://127.0.0.1:8080/company/kitchen-projects/${kitchenProjectId}`;
+  const navigationLinks = document.querySelectorAll(".platform-actions a");
+  navigationLinks[0].href = projectHome;
+  navigationLinks[0].textContent = "← В проект";
+  navigationLinks[1].href = `http://127.0.0.1:5174/editor/?new=1&kitchenProject=${kitchenProjectId}`;
+}
+if (workspaceMode === "layout") {
+  document.body.classList.add("layout-workspace");
+  ["new-project", "tool-draw", "add-wall", "add-window", "add-doorway", "delete"].forEach((id) => {
+    const element = document.getElementById(id);
+    if (element) element.hidden = true;
+  });
+}
 
 function renderAll() {
   controller.selectedWallIds = new Set([...controller.selectedWallIds].filter((id) => room.getWall(id)));
@@ -40,8 +99,122 @@ function renderAll() {
   scene.selectedWallIds = new Set(controller.selectedWallIds);
   scene.selectedWindowIds = new Set(controller.selectedWindowIds);
   scene.syncRoom(room, controller.selectedWallId, controller.selectedWindowId);
+  scene.syncFurniture(workspaceMode === "layout" ? projectFurniture : [], workspaceMode === "layout" ? placements : [], selectedPlacementId);
   ui.update(room, controller, commands, scene.viewMode, scene.gridVisible);
+  renderProjectFurniture();
+  queueProjectSave();
 }
+
+function renderProjectFurniture() {
+  const section = document.getElementById("project-furniture-section");
+  if (!kitchenProjectId || workspaceMode !== "layout") return;
+  section.hidden = false;
+  document.getElementById("project-furniture-empty").hidden = projectFurniture.length > 0;
+  const list = document.getElementById("project-furniture-list");
+  list.replaceChildren(...projectFurniture.map((item) => {
+    const row = document.createElement("article");
+    row.className = "project-furniture-item";
+    const copy = document.createElement("span");
+    const name = document.createElement("strong");
+    name.textContent = item.name;
+    const count = document.createElement("small");
+    count.textContent = `${item.data?.model?.parts?.length ?? 0} деталей`;
+    copy.append(name, count);
+    const ownPlacements = placements.filter((placement) => placement.furnitureProjectId === item.id);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = ownPlacements.length ? `Добавить ещё · ${ownPlacements.length}` : "Добавить";
+    button.addEventListener("click", () => {
+      const placement = {
+        id: crypto.randomUUID(), furnitureProjectId: item.id,
+        xMm: ownPlacements.length * 700, zMm: 0, rotationY: 0,
+      };
+      placements.push(placement);
+      selectedPlacementId = placement.id;
+      renderAll();
+      ui.showToast(`«${item.name}» добавлен в помещение`);
+    });
+    row.append(copy, button);
+    row.addEventListener("click", (event) => {
+      if (event.target === button || !ownPlacements.length) return;
+      selectedPlacementId = ownPlacements.at(-1).id;
+      renderAll();
+    });
+    row.classList.toggle("selected", ownPlacements.some((placement) => placement.id === selectedPlacementId));
+    return row;
+  }));
+  const selected = placements.find((placement) => placement.id === selectedPlacementId);
+  const properties = document.getElementById("placement-properties");
+  properties.hidden = !selected;
+  if (selected) {
+    const furniture = projectFurniture.find((item) => item.id === selected.furnitureProjectId);
+    document.getElementById("placement-title").textContent = furniture?.name ?? "Размещение";
+    document.getElementById("placement-x").value = selected.xMm;
+    document.getElementById("placement-z").value = selected.zMm;
+    document.getElementById("placement-rotation").value = selected.rotationY;
+  }
+}
+
+function updatePlacement(changes) {
+  const selected = placements.find((placement) => placement.id === selectedPlacementId);
+  if (!selected) return;
+  Object.assign(selected, changes);
+  renderAll();
+}
+
+["x", "z", "rotation"].forEach((key) => {
+  document.getElementById(`placement-${key}`).addEventListener("change", (event) => {
+    const value = Number(event.target.value);
+    if (!Number.isFinite(value)) return renderAll();
+    updatePlacement(key === "rotation" ? { rotationY: value } : { [`${key}Mm`]: value });
+  });
+});
+document.getElementById("remove-placement").addEventListener("click", () => {
+  placements = placements.filter((placement) => placement.id !== selectedPlacementId);
+  selectedPlacementId = null;
+  renderAll();
+});
+
+async function loadKitchenProject() {
+  if (!kitchenProjectId) return;
+  loadingProject = true;
+  try {
+    const response = await fetch(`/api/kitchen-projects/${kitchenProjectId}`, { credentials: "include" });
+    if (!response.ok) throw new Error();
+    kitchenProject = await response.json();
+    projectFurniture = kitchenProject.furniture ?? [];
+    placements = Array.isArray(kitchenProject.sceneData?.placements) ? kitchenProject.sceneData.placements : [];
+    if (Array.isArray(kitchenProject.roomData?.walls)) room.restore(kitchenProject.roomData);
+    const title = document.getElementById("kitchen-project-title");
+    title.textContent = `${kitchenProject.name} · ${workspaceMode === "layout" ? "Общая сцена" : "Помещение"}`;
+    title.hidden = false;
+    document.title = `${kitchenProject.name} — ${workspaceMode === "layout" ? "Общая сцена" : "Помещение"}`;
+  } catch {
+    ui.showToast("Не удалось открыть проект кухни");
+  } finally {
+    loadingProject = false;
+    renderAll();
+  }
+}
+
+function queueProjectSave() {
+  if (!kitchenProjectId || loadingProject || !kitchenProject) return;
+  clearTimeout(projectSaveTimer);
+  projectSaveTimer = setTimeout(async () => {
+    try {
+      const data = workspaceMode === "layout"
+        ? { name: kitchenProject.name, sceneData: { placements } }
+        : { name: kitchenProject.name, roomData: room.toJSON() };
+      const response = await fetch(`/api/kitchen-projects/${kitchenProjectId}`, {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error();
+    } catch { ui.showToast("Не удалось сохранить проект кухни"); }
+  }, 800);
+}
+
+document.getElementById("refresh-project-furniture").addEventListener("click", loadKitchenProject);
 
 function setTool(tool) {
   if (tool === "draw" && scene.viewMode !== "top") setView("top");
@@ -240,3 +413,4 @@ window.addEventListener("keydown", (event) => {
 });
 
 renderAll();
+loadKitchenProject();

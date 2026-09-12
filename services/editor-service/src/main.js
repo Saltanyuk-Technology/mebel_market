@@ -5,13 +5,17 @@ import { FurnitureScene } from "./scene.js";
 const byId = (id) => document.getElementById(id);
 const STORAGE_KEY = "mebel-furniture-editor-workspace-v1";
 const PROJECT_API = "/api/furniture-projects";
+const LIBRARY_API = "/api/furniture-library";
 const editorUrlParams = new URLSearchParams(location.search);
 let currentProjectId = editorUrlParams.get("project");
+let kitchenProjectId = editorUrlParams.get("kitchenProject");
 let currentProjectName = "";
 let draftId = editorUrlParams.get("draft");
 if (editorUrlParams.get("new") === "1") {
   draftId = crypto.randomUUID();
-  window.history.replaceState({}, "", `${location.pathname}?draft=${draftId}`);
+  const params = new URLSearchParams({ draft: draftId });
+  if (editorUrlParams.get("kitchenProject")) params.set("kitchenProject", editorUrlParams.get("kitchenProject"));
+  window.history.replaceState({}, "", `${location.pathname}?${params}`);
 }
 let localWorkspaceKey = currentProjectId
   ? `${STORAGE_KEY}-project-${currentProjectId}`
@@ -358,6 +362,8 @@ const renameAssemblyModal = byId("rename-assembly-modal");
 const renameAssemblyForm = byId("rename-assembly-form");
 const saveProjectModal = byId("save-project-modal");
 const saveProjectForm = byId("save-project-form");
+const libraryModal = byId("library-modal");
+const saveLibraryModal = byId("save-library-modal");
 let legsBottomId = null;
 let connectionPartIds = [];
 let renamedAssemblyKey = null;
@@ -440,6 +446,14 @@ function closeSaveProjectModal() {
 
 byId("open-add-part").addEventListener("click", openAddPartModal);
 byId("save-project").addEventListener("click", openSaveProjectModal);
+byId("open-library").addEventListener("click", openLibraryModal);
+byId("save-to-library").addEventListener("click", () => {
+  if (!model.parts.length) return showToast("Сначала соберите мебель");
+  byId("library-name").value = currentProjectName || "";
+  byId("save-library-message").hidden = true;
+  saveLibraryModal.hidden = false;
+  byId("library-name").focus();
+});
 byId("close-save-project").addEventListener("click", closeSaveProjectModal);
 byId("cancel-save-project").addEventListener("click", closeSaveProjectModal);
 saveProjectModal.addEventListener("pointerdown", (event) => {
@@ -457,7 +471,7 @@ saveProjectForm.addEventListener("submit", async (event) => {
       method: currentProjectId ? "PUT" : "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: byId("project-name").value.trim(), data: workspaceData() }),
+      body: JSON.stringify({ name: byId("project-name").value.trim(), data: workspaceData(), kitchenProjectId }),
     });
     if (response.status === 401) {
       message.textContent = "Войдите в кабинет компании, чтобы сохранить проект.";
@@ -468,8 +482,11 @@ saveProjectForm.addEventListener("submit", async (event) => {
     const project = await response.json();
     currentProjectId = project.id;
     currentProjectName = project.name;
+    kitchenProjectId ??= project.kitchenProjectId;
     localWorkspaceKey = `${STORAGE_KEY}-project-${project.id}`;
-    window.history.replaceState({}, "", `${location.pathname}?project=${project.id}`);
+    const params = new URLSearchParams({ project: project.id });
+    if (kitchenProjectId) params.set("kitchenProject", kitchenProjectId);
+    window.history.replaceState({}, "", `${location.pathname}?${params}`);
     byId("save-project").classList.add("saved");
     byId("save-project").textContent = "Сохранено";
     byId("save-project").title = project.name;
@@ -481,6 +498,82 @@ saveProjectForm.addEventListener("submit", async (event) => {
   } finally {
     submit.disabled = false;
   }
+});
+
+function closeLibraryModal() { libraryModal.hidden = true; }
+function closeSaveLibraryModal() { saveLibraryModal.hidden = true; }
+byId("close-library").addEventListener("click", closeLibraryModal);
+byId("cancel-library").addEventListener("click", closeLibraryModal);
+byId("close-save-library").addEventListener("click", closeSaveLibraryModal);
+byId("cancel-save-library").addEventListener("click", closeSaveLibraryModal);
+libraryModal.addEventListener("pointerdown", (event) => { if (event.target === libraryModal) closeLibraryModal(); });
+saveLibraryModal.addEventListener("pointerdown", (event) => { if (event.target === saveLibraryModal) closeSaveLibraryModal(); });
+
+async function openLibraryModal() {
+  libraryModal.hidden = false;
+  const list = byId("library-list");
+  list.innerHTML = '<p class="library-empty">Загрузка…</p>';
+  byId("library-message").hidden = true;
+  try {
+    const response = await fetch(LIBRARY_API, { credentials: "include" });
+    if (response.status === 401) throw new Error("auth");
+    if (!response.ok) throw new Error("load");
+    const { items } = await response.json();
+    if (!items.length) {
+      list.innerHTML = '<p class="library-empty">В библиотеке пока ничего нет. Закройте окно и нажмите «В библиотеку».</p>';
+      return;
+    }
+    list.replaceChildren(...items.map((item) => {
+      const row = document.createElement("article");
+      row.className = "library-item";
+      const copy = document.createElement("span");
+      const name = document.createElement("strong");
+      name.textContent = item.name;
+      const details = document.createElement("small");
+      details.textContent = `${item.data?.model?.parts?.length ?? 0} деталей · обновлён ${new Date(item.updatedAt).toLocaleDateString("ru-RU")}`;
+      copy.append(name, details);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "Добавить копию";
+      button.addEventListener("click", () => {
+        const imported = history.commit(`Импортировать «${item.name}»`, () => model.importModel(item.data?.model));
+        if (!imported?.length) return showToast("Шаблон не содержит деталей");
+        selectedIds.clear();
+        imported.forEach((part) => selectedIds.add(part.id));
+        closeLibraryModal();
+        render();
+        showToast(`«${item.name}» добавлен как независимая копия`);
+      });
+      row.append(copy, button);
+      return row;
+    }));
+  } catch (error) {
+    list.replaceChildren();
+    const message = byId("library-message");
+    message.textContent = error.message === "auth" ? "Войдите в кабинет компании, чтобы открыть библиотеку." : "Не удалось загрузить библиотеку.";
+    message.hidden = false;
+  }
+}
+
+byId("save-library-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submit = byId("confirm-save-library");
+  const message = byId("save-library-message");
+  submit.disabled = true;
+  message.hidden = true;
+  try {
+    const response = await fetch(LIBRARY_API, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: byId("library-name").value.trim(), data: workspaceData(), sourceProjectId: currentProjectId }),
+    });
+    if (!response.ok) throw new Error(response.status === 401 ? "auth" : "save");
+    const item = await response.json();
+    closeSaveLibraryModal();
+    showToast(`Шаблон «${item.name}» сохранён`);
+  } catch (error) {
+    message.textContent = error.message === "auth" ? "Войдите в кабинет компании, чтобы сохранить шаблон." : "Не удалось сохранить шаблон.";
+    message.hidden = false;
+  } finally { submit.disabled = false; }
 });
 byId("close-add-part").addEventListener("click", closeAddPartModal);
 byId("cancel-add-part").addEventListener("click", closeAddPartModal);
@@ -595,8 +688,34 @@ byId("new-part-type").addEventListener("change", (event) => {
 byId("part-material").addEventListener("change", (event) => {
   const isHdf = event.target.value === "hdf-4";
   const thicknessMm = isHdf ? 4 : 16;
+  const frameMatch = model.findAutoRearPanelFrame();
   byId("new-part-type-field").hidden = isHdf;
-  byId("part-material-note").textContent = `Толщина детали определяется материалом: ${thicknessMm} мм.`;
+  byId("new-part-length-label").textContent = isHdf
+    ? "Длина"
+    : byId("new-part-type").value === "side" ? "Высота" : "Длина";
+  byId("hdf-auto-section").hidden = !isHdf;
+  byId("add-hdf-back").disabled = !frameMatch;
+  byId("hdf-auto-note").textContent = frameMatch
+    ? "Каркас найден автоматически. Отступ от каждого края — 2 мм."
+    : "Нужен собранный каркас: дно, две боковины, верхняя деталь или планка и заданное направление вперёд.";
+  byId("part-material-note").textContent = isHdf
+    ? "Толщина ХДФ фиксирована: 4 мм. Размеры ниже можно использовать для ручного добавления."
+    : `Толщина детали определяется материалом: ${thicknessMm} мм.`;
+});
+byId("add-hdf-back").addEventListener("click", () => {
+  const created = history.commit(
+    "Добавить заднюю стенку ХДФ",
+    () => model.addAutoRearPanel(2),
+  );
+  if (created === false) {
+    showToast("Не найден готовый каркас из четырёх деталей");
+    return;
+  }
+  selectedIds.clear();
+  selectedIds.add(created.id);
+  closeAddPartModal();
+  render();
+  showToast("Задняя стенка ХДФ добавлена с отступом 2 мм");
 });
 
 const fieldMap = {
@@ -1092,6 +1211,7 @@ async function loadServerProject() {
     scene.setShowAllPartDimensions(showAllDimensions);
     scene.setRulerSettings(rulerSettings);
     currentProjectName = project.name;
+    kitchenProjectId ??= project.kitchenProjectId;
     byId("save-project").classList.add("saved");
     byId("save-project").textContent = "Сохранено";
     byId("save-project").title = project.name;
@@ -1117,6 +1237,7 @@ function queueServerAutosave() {
           projectId: currentProjectId,
           name: currentProjectName,
           data: workspaceData(),
+          kitchenProjectId,
         }),
       });
       if (!response.ok) return;
@@ -1124,7 +1245,9 @@ function queueServerAutosave() {
       currentProjectId = project.id;
       currentProjectName = project.name;
       localWorkspaceKey = `${STORAGE_KEY}-project-${project.id}`;
-      window.history.replaceState({}, "", `${location.pathname}?project=${project.id}`);
+      const params = new URLSearchParams({ project: project.id });
+      if (kitchenProjectId) params.set("kitchenProject", kitchenProjectId);
+      window.history.replaceState({}, "", `${location.pathname}?${params}`);
       byId("save-project").classList.add("saved");
       byId("save-project").textContent = "Автосохранено";
       byId("save-project").title = project.name;
@@ -1140,6 +1263,7 @@ window.addEventListener("beforeunload", () => {
     projectId: currentProjectId,
     name: currentProjectName,
     data: workspaceData(),
+    kitchenProjectId,
   });
   navigator.sendBeacon(`${PROJECT_API}/autosave`, new Blob([payload], { type: "application/json" }));
 });

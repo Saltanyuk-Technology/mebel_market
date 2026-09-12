@@ -36,6 +36,8 @@
             <span>Отображать размеры</span>
           </label>
           <button id="delete" class="danger" title="Удалить">Удалить</button>
+          <button id="open-library" type="button" title="Добавить сохранённый корпус">Моя библиотека</button>
+          <button id="save-to-library" type="button" title="Сохранить текущую мебель как шаблон">В библиотеку</button>
           <button id="save-project" class="save-project" type="button" title="Сохранить проект">Сохранить</button>
         </div>
         <div class="view-switch">
@@ -194,6 +196,10 @@
               <div><input id="part-width" type="number" min="1" step="1" value="400" required /><em>мм</em></div>
             </label>
           </div>
+          <div id="hdf-auto-section" class="hdf-auto-section" hidden>
+            <p id="hdf-auto-note">Нужен собранный каркас: дно, две боковины, верхняя деталь или планка и заданное направление вперёд.</p>
+            <button id="add-hdf-back" class="primary-action" type="button">Добавить заднюю стенку автоматически</button>
+          </div>
           <p id="part-material-note" class="material-note">Толщина детали определяется материалом: 16 мм.</p>
         </div>
         <div class="modal-actions">
@@ -287,6 +293,34 @@
           <button id="cancel-save-project" type="button">Отмена</button>
           <button id="confirm-save-project" class="primary-action" type="submit">Сохранить</button>
         </div>
+      </form>
+    </div>
+    <div id="library-modal" class="modal-backdrop" hidden>
+      <section class="modal library-modal" role="dialog" aria-modal="true" aria-labelledby="library-title">
+        <div class="modal-heading">
+          <div><span class="eyebrow">Повторное использование</span><h2 id="library-title">Моя библиотека мебели</h2></div>
+          <button id="close-library" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="material-note">Выберите шаблон — в текущую сцену добавится независимая копия со всеми деталями, ножками и соединениями.</p>
+          <div id="library-list" class="library-list"><p class="library-empty">Загрузка…</p></div>
+          <p id="library-message" class="modal-message" role="status" hidden></p>
+        </div>
+        <div class="modal-actions"><button id="cancel-library" type="button">Закрыть</button></div>
+      </section>
+    </div>
+    <div id="save-library-modal" class="modal-backdrop" hidden>
+      <form id="save-library-form" class="modal compact-modal" aria-labelledby="save-library-title">
+        <div class="modal-heading">
+          <div><span class="eyebrow">Моя библиотека</span><h2 id="save-library-title">Сохранить как шаблон</h2></div>
+          <button id="close-save-library" class="modal-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <div class="modal-body">
+          <label class="modal-field"><span>Название шаблона</span><input id="library-name" maxlength="160" placeholder="Например, Нижний корпус 600" required /></label>
+          <p class="material-note">Шаблон останется неизменным, даже если после импорта вы добавите ящики, фасады или измените размеры.</p>
+          <p id="save-library-message" class="modal-message" role="status" hidden></p>
+        </div>
+        <div class="modal-actions"><button id="cancel-save-library" type="button">Отмена</button><button id="confirm-save-library" class="primary-action" type="submit">Сохранить шаблон</button></div>
       </form>
     </div>
     <div id="rename-assembly-modal" class="modal-backdrop" hidden>

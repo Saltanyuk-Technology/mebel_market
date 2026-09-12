@@ -34,7 +34,8 @@ export class SceneManager {
     this.floorGroup = new THREE.Group();
     this.previewGroup = new THREE.Group();
     this.handleGroup = new THREE.Group();
-    this.scene.add(this.floorGroup, this.wallGroup, this.windowGroup, this.pointGroup, this.previewGroup, this.handleGroup);
+    this.furnitureGroup = new THREE.Group();
+    this.scene.add(this.floorGroup, this.wallGroup, this.windowGroup, this.furnitureGroup, this.pointGroup, this.previewGroup, this.handleGroup);
     this.wallMeshes = new Map();
     this.windowMeshes = new Map();
     this.pointMeshes = new Map();
@@ -226,6 +227,46 @@ export class SceneManager {
     this.pointGroup.visible = this.viewMode === "top";
     this.handleGroup.visible = this.viewMode === "3d";
     this.updateDimensions();
+  }
+
+  syncFurniture(furniture, placements, selectedPlacementId = null) {
+    this.clearGroup(this.furnitureGroup);
+    const projects = new Map((furniture ?? []).map((item) => [item.id, item]));
+    (placements ?? []).forEach((placement) => {
+      const project = projects.get(placement.furnitureProjectId);
+      const parts = project?.data?.model?.parts;
+      if (!Array.isArray(parts)) return;
+      const root = new THREE.Group();
+      root.position.set(mmToWorld(placement.xMm ?? 0), 0, mmToWorld(placement.zMm ?? 0));
+      root.rotation.y = THREE.MathUtils.degToRad(placement.rotationY ?? 0);
+      root.userData = { type: "furniture", id: placement.id };
+      parts.forEach((part) => {
+        const selected = placement.id === selectedPlacementId;
+        const material = new THREE.MeshStandardMaterial({
+          color: part.material === "hdf-4" ? 0xb9966f : selected ? 0xe8a27d : 0xe8dcc4,
+          roughness: 0.82,
+        });
+        const geometry = part.hardwareType === "leg"
+          ? new THREE.CylinderGeometry(mmToWorld(part.sizeX / 2), mmToWorld(part.sizeX / 2), mmToWorld(part.sizeY), 20)
+          : new THREE.BoxGeometry(mmToWorld(part.sizeX), mmToWorld(part.sizeY), mmToWorld(part.sizeZ));
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.rotation.set(
+          THREE.MathUtils.degToRad(part.rotationX ?? 0),
+          THREE.MathUtils.degToRad(part.rotationY ?? 0),
+          THREE.MathUtils.degToRad(part.rotationZ ?? 0),
+        );
+        const matrix = new THREE.Matrix4().makeRotationFromEuler(mesh.rotation).elements;
+        const halfHeight = Math.abs(matrix[1]) * mmToWorld(part.sizeX / 2)
+          + Math.abs(matrix[5]) * mmToWorld(part.sizeY / 2)
+          + Math.abs(matrix[9]) * mmToWorld(part.sizeZ / 2);
+        mesh.position.set(mmToWorld(part.xMm ?? 0), mmToWorld(part.yMm ?? 0) + halfHeight, mmToWorld(part.zMm ?? 0));
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData = root.userData;
+        root.add(mesh);
+      });
+      this.furnitureGroup.add(root);
+    });
   }
 
   createWallMesh(wall) {
@@ -554,6 +595,8 @@ export class SceneManager {
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const handleHit = this.raycaster.intersectObjects(this.handleGroup.children, true)[0];
     if (handleHit?.object?.userData?.type === "resize-handle") return handleHit.object.userData;
+    const furnitureHit = this.raycaster.intersectObjects(this.furnitureGroup.children, true)[0];
+    if (furnitureHit?.object?.userData?.type === "furniture") return furnitureHit.object.userData;
     const windowHit = this.raycaster.intersectObjects(this.windowGroup.children, true)[0];
     if (windowHit?.object?.userData?.type === "window") return windowHit.object.userData;
     const targets = includePoints ? [...this.pointGroup.children, ...this.wallGroup.children] : this.wallGroup.children;

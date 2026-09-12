@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS furniture_projects (
 );
 CREATE INDEX IF NOT EXISTS furniture_projects_user_updated_idx
     ON furniture_projects(user_id, updated_at DESC)
+;
+ALTER TABLE furniture_projects ADD COLUMN IF NOT EXISTS kitchen_project_id UUID;
+CREATE INDEX IF NOT EXISTS furniture_projects_kitchen_project_idx
+    ON furniture_projects(kitchen_project_id, updated_at DESC)
 """
 
 
@@ -34,7 +38,7 @@ async def current_company():
 
 async def list_for_user(user_id: int):
     return await orm.fetch_all(
-        """SELECT id, name, autosaved, created_at, updated_at
+        """SELECT id, name, kitchen_project_id, autosaved, created_at, updated_at
            FROM furniture_projects WHERE user_id = $1 ORDER BY updated_at DESC""",
         user_id,
     )
@@ -53,7 +57,7 @@ async def get_project(project_id):
     if not user:
         return jsonify({"error": "authentication_required"}), 401
     row = await orm.fetch_one(
-        """SELECT id, name, project_data, autosaved, created_at, updated_at
+        """SELECT id, name, kitchen_project_id, project_data, autosaved, created_at, updated_at
            FROM furniture_projects WHERE id = $1 AND user_id = $2""",
         project_id, int(user["id"]),
     )
@@ -70,6 +74,18 @@ async def save_project(project_id=None, autosave: bool = False):
         return jsonify({"error": "invalid_project_data"}), 400
     name = str(payload.get("name") or default_project_name()).strip()[:160]
     requested_id = project_id or payload.get("projectId")
+    kitchen_project_id = payload.get("kitchenProjectId")
+    if kitchen_project_id:
+        try:
+            kitchen_project_id = uuid.UUID(str(kitchen_project_id))
+        except ValueError:
+            return jsonify({"error": "invalid_kitchen_project_id"}), 400
+        owns_kitchen = await orm.fetchval(
+            "SELECT id FROM kitchen_projects WHERE id = $1 AND user_id = $2",
+            kitchen_project_id, int(user["id"]),
+        )
+        if not owns_kitchen:
+            return jsonify({"error": "kitchen_project_not_found"}), 404
     if requested_id:
         try:
             requested_id = uuid.UUID(str(requested_id))
@@ -77,19 +93,20 @@ async def save_project(project_id=None, autosave: bool = False):
             return jsonify({"error": "invalid_project_id"}), 400
         row = await orm.fetch_one(
             """UPDATE furniture_projects
-               SET name = $3, project_data = $4::jsonb, autosaved = $5, updated_at = NOW()
+               SET name = $3, project_data = $4::jsonb, autosaved = $5,
+                   kitchen_project_id = COALESCE($6, kitchen_project_id), updated_at = NOW()
                WHERE id = $1 AND user_id = $2
-               RETURNING id, name, project_data, autosaved, created_at, updated_at""",
-            requested_id, int(user["id"]), name, json.dumps(project_data), autosave,
+               RETURNING id, name, kitchen_project_id, project_data, autosaved, created_at, updated_at""",
+            requested_id, int(user["id"]), name, json.dumps(project_data), autosave, kitchen_project_id,
         )
         if row:
             return jsonify(project_json(row, True))
     new_id = uuid.uuid4()
     row = await orm.fetch_one(
-        """INSERT INTO furniture_projects (id, user_id, name, project_data, autosaved)
-           VALUES ($1, $2, $3, $4::jsonb, $5)
-           RETURNING id, name, project_data, autosaved, created_at, updated_at""",
-        new_id, int(user["id"]), name, json.dumps(project_data), autosave,
+        """INSERT INTO furniture_projects (id, user_id, name, project_data, autosaved, kitchen_project_id)
+           VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+           RETURNING id, name, kitchen_project_id, project_data, autosaved, created_at, updated_at""",
+        new_id, int(user["id"]), name, json.dumps(project_data), autosave, kitchen_project_id,
     )
     return jsonify(project_json(row, True)), 201
 

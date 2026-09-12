@@ -3,7 +3,7 @@ import { AddWallCommand, ChangeWallPropertiesCommand, ChangeWindowPropertiesComm
 import { findWallCornerSnap, polygonSelfIntersects, wouldIntersectExisting } from "../geometry/polygon.js";
 
 export class EditorController {
-  constructor({ room, scene, commands, snap, onChange, onCursor, onToolChange, onToast }) {
+  constructor({ room, scene, commands, snap, onChange, onCursor, onToolChange, onToast, onFurniturePointerDown, onFurniturePointerMove, onFurniturePointerUp }) {
     this.room = room;
     this.scene = scene;
     this.commands = commands;
@@ -12,6 +12,9 @@ export class EditorController {
     this.onCursor = onCursor;
     this.onToolChange = onToolChange;
     this.onToast = onToast;
+    this.onFurniturePointerDown = onFurniturePointerDown;
+    this.onFurniturePointerMove = onFurniturePointerMove;
+    this.onFurniturePointerUp = onFurniturePointerUp;
     this.tool = "select";
     this.selectedWallId = null;
     this.selectedWindowId = null;
@@ -23,6 +26,7 @@ export class EditorController {
     this.lastWallPress = null;
     this.lastWindowPress = null;
     this.backgroundPress = null;
+    this.roomEditingEnabled = true;
     this.bindEvents();
   }
 
@@ -126,6 +130,7 @@ export class EditorController {
   }
 
   handlePointerMove(event) {
+    if (this.onFurniturePointerMove?.(event)) return;
     if (this.drag?.type === "window-resize-height") {
       const item = this.room.getWindow(this.drag.windowId);
       const value = this.drag.fromHeightMm + (this.drag.startClientY - event.clientY) * 10;
@@ -252,6 +257,8 @@ export class EditorController {
     }
 
     const picked = this.scene.pick(event, true);
+    if (picked?.type === "furniture" && this.onFurniturePointerDown?.(event, picked)) return;
+    if (!this.roomEditingEnabled) return;
     if (picked?.type === "resize-handle") {
       if (picked.ownerType === "window") {
         const item = this.room.getWindow(picked.ownerId);
@@ -534,6 +541,7 @@ export class EditorController {
   }
 
   handlePointerUp(event) {
+    if (this.onFurniturePointerUp?.(event)) return;
     if (!this.drag) {
       if (this.backgroundPress) {
         const distance = Math.hypot(event.clientX - this.backgroundPress.x, event.clientY - this.backgroundPress.y);

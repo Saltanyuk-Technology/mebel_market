@@ -8,6 +8,38 @@ import {
   History,
 } from "../src/model.js";
 
+function addCabinetFrame(model, {
+  lengthMm = 600,
+  widthMm = 400,
+  openingHeightMm = 684,
+  frontDirection = "z+",
+} = {}) {
+  const bottom = model.addCustomPart({ partType: "bottom", lengthMm, widthMm });
+  const top = model.addCustomPart({ partType: "top", lengthMm, widthMm });
+  const facesAlongX = ["x+", "x-"].includes(frontDirection);
+  const sideLength = facesAlongX ? lengthMm : openingHeightMm;
+  const sideWidth = facesAlongX ? openingHeightMm : widthMm;
+  const firstSide = model.addCustomPart({ partType: "side", lengthMm: sideLength, widthMm: sideWidth });
+  const secondSide = model.addCustomPart({ partType: "side", lengthMm: sideLength, widthMm: sideWidth });
+  const topY = 16 + openingHeightMm;
+  model.updatePart(bottom.id, { xMm: 0, yMm: 0, zMm: 0, frontDirection });
+  model.updatePart(top.id, { xMm: 0, yMm: topY, zMm: 0, frontDirection });
+  if (facesAlongX) {
+    const offsetZ = widthMm / 2 - 8;
+    model.updatePart(firstSide.id, { xMm: 0, yMm: 16, zMm: -offsetZ, rotationX: 90, rotationZ: 0, frontDirection });
+    model.updatePart(secondSide.id, { xMm: 0, yMm: 16, zMm: offsetZ, rotationX: 90, rotationZ: 0, frontDirection });
+  } else {
+    const offsetX = lengthMm / 2 - 8;
+    model.updatePart(firstSide.id, { xMm: -offsetX, yMm: 16, zMm: 0, rotationZ: 90, frontDirection });
+    model.updatePart(secondSide.id, { xMm: offsetX, yMm: 16, zMm: 0, rotationZ: 90, frontDirection });
+  }
+  model.connectParts([bottom.id, firstSide.id]);
+  model.connectParts([bottom.id, secondSide.id]);
+  model.connectParts([top.id, firstSide.id]);
+  model.connectParts([top.id, secondSide.id]);
+  return { bottom, top, firstSide, secondSide };
+}
+
 test("Shift фиксирует вторую точку линейки по доминирующей оси", () => {
   const start = { xMm: 10, yMm: 20, zMm: 30 };
   assert.deepEqual(
@@ -44,9 +76,9 @@ test("конфирмат перемещается только вдоль тор
   assert.equal(placement.fixedAxis, "x");
   assert.equal(placement.fixedValue, 292);
 
-  assert.equal(model.moveConfirmat(connection.id, 0, 1000), 229);
+  assert.equal(model.moveConfirmat(connection.id, 0, 1000), 175);
   placement = getConfirmatPlacement(model, connection);
-  assert.deepEqual(placement.points[0], { xMm: 292, yMm: 0, zMm: 229 });
+  assert.deepEqual(placement.points[0], { xMm: 292, yMm: 0, zMm: 175 });
 });
 
 test("перед стоящей боковины автоматически совпадает с передом соединённого дна", () => {
@@ -152,7 +184,25 @@ test("соединённые конфирматами детали переме�
     { xMm: side.xMm, yMm: side.yMm, zMm: side.zMm },
     { xMm: 417, yMm: 56, zMm: -75 },
   );
+  assert.deepEqual(getConfirmatPlacement(model, model.connections[0]).values, [-250, 100]);
   assert.equal(model.movePartConstrained(side.id, { rotationY: 90 }), false);
+});
+
+test("старые абсолютные координаты конфирматов исправляются после загрузки", () => {
+  const model = new FurnitureModel();
+  const bottom = model.addCustomPart({ lengthMm: 600, widthMm: 470, partType: "bottom" });
+  const side = model.addCustomPart({ lengthMm: 720, widthMm: 470, partType: "side" });
+  model.updatePart(bottom.id, { xMm: 0, yMm: 0, zMm: 0 });
+  model.updatePart(side.id, { xMm: 292, yMm: 16, zMm: 0, rotationZ: 90 });
+  model.connectParts([bottom.id, side.id], "confirmat", 60);
+  const saved = model.toJSON();
+  saved.parts.forEach((part) => { part.zMm -= 236; });
+
+  const restored = new FurnitureModel();
+  restored.restore(saved);
+
+  assert.deepEqual(restored.connections[0].positionsMm, [-411, -61]);
+  assert.deepEqual(getConfirmatPlacement(restored, restored.connections[0]).values, [-411, -61]);
 });
 
 test("после удаления конфирматов детали снова перемещаются независимо", () => {
@@ -288,6 +338,87 @@ test("деталь из ХДФ получает фиксированную то�
   model.updatePart(part.id, { sizeY: 20, partType: "shelf" });
   assert.equal(part.sizeY, 4);
   assert.equal(part.partType, null);
+});
+
+test("задняя стенка ХДФ автоматически получает отступ 2 мм от краёв сборки", () => {
+  const model = new FurnitureModel();
+  const { bottom } = addCabinetFrame(model);
+
+  const rear = model.addAutoRearPanel(2);
+  const rearBounds = getPartAabb(rear);
+
+  assert.equal(rear.material, "hdf-4");
+  assert.equal(rear.partType, null);
+  assert.equal(rear.rotationX, 90);
+  assert.equal(rear.sizeX, 596);
+  assert.equal(rear.sizeZ, 712);
+  assert.equal(rearBounds.minX, -298);
+  assert.equal(rearBounds.maxX, 298);
+  assert.equal(rearBounds.minY, 2);
+  assert.equal(rearBounds.maxY, 714);
+  assert.equal(Math.round(rearBounds.maxZ), -200);
+  assert.equal(rear.lockedTo, bottom.id);
+});
+
+test("повторное автоматическое добавление заменяет заднюю стенку ХДФ", () => {
+  const model = new FurnitureModel();
+  addCabinetFrame(model, {
+    lengthMm: 500,
+    widthMm: 350,
+    openingHeightMm: 584,
+    frontDirection: "x+",
+  });
+
+  const first = model.addAutoRearPanel(2);
+  const second = model.addAutoRearPanel(2);
+  const rearBounds = getPartAabb(second);
+
+  assert.equal(model.getPart(first.id), null);
+  assert.equal(second.rotationZ, 90);
+  assert.equal(Math.round(rearBounds.maxX), -250);
+  assert.equal(rearBounds.minZ, -173);
+  assert.equal(rearBounds.maxZ, 173);
+  assert.equal(model.parts.filter((part) => part.autoRearPanel).length, 1);
+});
+
+test("верхняя планка распознаётся как верх каркаса без ручного выбора деталей", () => {
+  const model = new FurnitureModel();
+  const { bottom, top, firstSide, secondSide } = addCabinetFrame(model);
+  model.updatePart(top.id, { partType: "shelf" });
+  [bottom, top, firstSide, secondSide].forEach((part) => {
+    model.updatePart(part.id, { yMm: part.yMm + 100 });
+  });
+  for (let index = 0; index < 4; index += 1) {
+    const leg = model.addLeg();
+    leg.attachedTo = bottom.id;
+    leg.lockedTo = bottom.id;
+  }
+
+  const frame = model.findAutoRearPanelFrame();
+  const rear = model.addAutoRearPanel(2);
+
+  assert.deepEqual(new Set(frame.ids), new Set([
+    bottom.id,
+    top.id,
+    firstSide.id,
+    secondSide.id,
+  ]));
+  assert.equal(rear.material, "hdf-4");
+  assert.equal(rear.sizeX, 596);
+  assert.equal(rear.sizeZ, 712);
+});
+
+test("автоматическая задняя стенка требует полный каркас и направление вперёд", () => {
+  const incomplete = new FurnitureModel();
+  incomplete.addCustomPart({ partType: "bottom" });
+  incomplete.addCustomPart({ partType: "top" });
+  assert.equal(incomplete.findAutoRearPanelFrame(), null);
+  assert.equal(incomplete.addAutoRearPanel(), false);
+
+  const withoutDirection = new FurnitureModel();
+  addCabinetFrame(withoutDirection, { frontDirection: null });
+  assert.equal(withoutDirection.findAutoRearPanelFrame(), null);
+  assert.equal(withoutDirection.addAutoRearPanel(), false);
 });
 
 test("на планке 70 мм с отступом 30 мм ставится один конфирмат по центру", () => {
@@ -527,4 +658,26 @@ test("после загрузки повреждённая связка восс
   const restoredLeg = restored.getPart(leg.id);
   assert.equal(restoredPanel.yMm, 100);
   assert.equal(restoredLeg.yMm, 0);
+});
+
+test("модель из библиотеки импортируется как независимая копия со своими связями", () => {
+  const source = new FurnitureModel();
+  const bottom = source.addCustomPart({ lengthMm: 600, widthMm: 400, partType: "bottom" });
+  const side = source.addCustomPart({ lengthMm: 16, widthMm: 400, partType: "side" });
+  source.updatePart(side.id, { xMm: 292, yMm: 16, rotationZ: 90 });
+  source.connectParts([bottom.id, side.id]);
+  source.placeBottomLegs(bottom.id, 40);
+
+  const target = new FurnitureModel();
+  const first = target.importModel(source.toJSON());
+  const second = target.importModel(source.toJSON());
+
+  assert.equal(first.length, source.parts.length);
+  assert.equal(second.length, source.parts.length);
+  assert.equal(new Set(target.parts.map((part) => part.id)).size, target.parts.length);
+  assert.equal(target.connections.length, 2);
+  assert.ok(first.every((part) => !second.some((other) => other.id === part.id)));
+  const firstBottom = first.find((part) => part.partType === "bottom");
+  const firstLegs = first.filter((part) => part.hardwareType === "leg");
+  assert.ok(firstLegs.every((leg) => leg.attachedTo === firstBottom.id && leg.lockedTo === firstBottom.id));
 });

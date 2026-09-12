@@ -11,6 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+SERVICE_LABELS = {
+    "user": "Пользовательский сайт",
+    "constructor": "Конструктор",
+    "editor": "Редактор",
+}
 
 
 def ensure_port_is_free(host: str, port: int, service_name: str) -> None:
@@ -38,17 +43,24 @@ def definitions() -> tuple[Service, ...]:
             "Не найдены 'pnpm' и 'npm'. Установите Node.js, заново откройте консоль "
             "и выполните установку frontend-зависимостей из README.md."
         )
-    run_script = (package_manager, "dev") if Path(package_manager).stem == "pnpm" else (
-        package_manager,
-        "run",
-        "dev",
-    )
+    vite_arguments = ("--clearScreen", "false", "--logLevel", "warn")
+    if Path(package_manager).stem == "pnpm":
+        run_script = (package_manager, "--silent", "dev", *vite_arguments)
+    else:
+        run_script = (
+            package_manager,
+            "--silent",
+            "run",
+            "dev",
+            "--",
+            *vite_arguments,
+        )
     return (
         Service(
             "user",
             ROOT / "services/user-service",
             (sys.executable, "server.py"),
-            "http://127.0.0.1:8080/health",
+            "http://127.0.0.1:8080/",
         ),
         Service("constructor", ROOT / "services/constructor-service", run_script, "http://127.0.0.1:5173/constructor/"),
         Service("editor", ROOT / "services/editor-service", run_script, "http://127.0.0.1:5174/editor/"),
@@ -123,11 +135,12 @@ def main() -> int:
         ensure_port_is_free("127.0.0.1", 5173, "конструктор")
         ensure_port_is_free("127.0.0.1", 5174, "редактор")
         running: list[list] = []
+        print("Локальные адреса:", flush=True)
         for service in definitions():
             process = start_service(service)
             processes.append(process)
             running.append([service, process, watched_state(service)])
-            print(f"  {service.name:<12} {service.url}", flush=True)
+            print(f"  Local ({SERVICE_LABELS[service.name]:<21}) {service.url}", flush=True)
         print("Все сервисы запущены. Для остановки нажмите Ctrl+C.", flush=True)
 
         while not stopping:

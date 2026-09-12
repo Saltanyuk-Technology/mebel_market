@@ -163,18 +163,24 @@ export function getConfirmatPlacement(model, connectionOrIds, insetOverride) {
   const defaultValues = availableSpacing < MIN_CONFIRMAT_SPACING_MM
     ? [(span.min + span.max) / 2]
     : [span.min + effectiveInset, span.max - effectiveInset];
-  const centerClearance = Math.min(CONFIRMAT_HEAD_RADIUS_MM, spanLength / 2);
+  const centerClearance = Math.min(
+    Math.max(CONFIRMAT_HEAD_RADIUS_MM, effectiveInset),
+    spanLength / 2,
+  );
   const roundedMinimum = Math.ceil(span.min + centerClearance);
   const roundedMaximum = Math.floor(span.max - centerClearance);
   const minimumValue = roundedMinimum <= roundedMaximum
     ? roundedMinimum
     : Math.round((span.min + span.max) / 2);
   const maximumValue = roundedMinimum <= roundedMaximum ? roundedMaximum : minimumValue;
-  const savedValues = !Array.isArray(connectionOrIds)
+  const storedValues = !Array.isArray(connectionOrIds)
     && Array.isArray(connectionOrIds.positionsMm)
     && connectionOrIds.positionsMm.length === defaultValues.length
     ? connectionOrIds.positionsMm
-    : defaultValues;
+    : null;
+  const savedValues = storedValues?.every((value) => (
+    Number.isFinite(value) && value >= minimumValue && value <= maximumValue
+  )) ? storedValues : defaultValues;
   const values = defaultValues.map((fallback, index) => {
     const requested = Number.isFinite(savedValues[index]) ? Math.round(savedValues[index]) : fallback;
     return Math.max(minimumValue, Math.min(maximumValue, requested));
@@ -194,6 +200,8 @@ export function getConfirmatPlacement(model, connectionOrIds, insetOverride) {
     spanAxis: span.axis,
     spanMin: span.min,
     spanMax: span.max,
+    minimumValue,
+    maximumValue,
     fixedAxis: fixed.axis,
     fixedValue: (fixed.min + fixed.max) / 2,
     surface,
@@ -280,6 +288,148 @@ export class FurnitureModel {
     this.placeInFreeArea(part);
     this.parts.push(part);
     return part;
+  }
+
+  getAssemblyPartIds(id) {
+    if (!this.getPart(id)) return [];
+    const connected = new Set([id]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      this.connections.forEach((connection) => {
+        if (!connection.partIds.some((partId) => connected.has(partId))) return;
+        connection.partIds.forEach((partId) => {
+          if (connected.has(partId)) return;
+          connected.add(partId);
+          changed = true;
+        });
+      });
+      this.parts.forEach((part) => {
+        const ownerId = part.lockedTo ?? part.attachedTo;
+        if (!ownerId) return;
+        if (connected.has(part.id) && !connected.has(ownerId)) {
+          connected.add(ownerId);
+          changed = true;
+        }
+        if (connected.has(ownerId) && !connected.has(part.id)) {
+          connected.add(part.id);
+          changed = true;
+        }
+      });
+    }
+    return [...connected];
+  }
+
+  findAutoRearPanelFrame() {
+    const candidates = [];
+    const visited = new Set();
+    this.parts.filter((part) => part.partType === "bottom").forEach((bottom) => {
+      if (visited.has(bottom.id)) return;
+      const assemblyIds = this.getAssemblyPartIds(bottom.id);
+      assemblyIds.forEach((id) => visited.add(id));
+      const assembly = assemblyIds
+        .map((id) => this.getPart(id))
+        .filter((part) => part?.kind !== "hardware" && part.material !== "hdf-4");
+      const bottoms = assembly.filter((part) => part.partType === "bottom");
+      const sides = assembly.filter((part) => part.partType === "side");
+      if (bottoms.length !== 1 || sides.length < 2) return;
+
+      const frontDirection = bottom.frontDirection
+        ?? assembly.find((part) => part.frontDirection)?.frontDirection;
+      if (!frontDirection) return;
+      const bottomBounds = getPartAabb(bottom);
+
+      const sideAxis = ["x+", "x-"].includes(frontDirection) ? "zMm" : "xMm";
+      const sortedSides = [...sides].sort((first, second) => first[sideAxis] - second[sideAxis]);
+      const frameSides = [sortedSides[0], sortedSides.at(-1)];
+      if (frameSides[0].id === frameSides[1].id) return;
+      const sideBounds = frameSides.map((part) => getPartAabb(part));
+      const sideTop = Math.min(...sideBounds.map((bounds) => bounds.maxY));
+      const top = assembly
+        .filter((part) => ![bottom.id, ...frameSides.map((side) => side.id)].includes(part.id))
+        .map((part) => ({ part, bounds: getPartAabb(part) }))
+        .filter(({ part, bounds }) => {
+          if (bounds.minY <= bottomBounds.maxY + 0.01) return false;
+          const height = bounds.maxY - bounds.minY;
+          const horizontal = height <= Math.min(
+            bounds.maxX - bounds.minX,
+            bounds.maxZ - bounds.minZ,
+          );
+          const reachesBothSides = sideBounds.every((side) => (
+            rangeGap(bounds.minX, bounds.maxX, side.minX, side.maxX) <= 1.01
+            && rangeGap(bounds.minZ, bounds.maxZ, side.minZ, side.maxZ) <= 1.01
+          ));
+          return (part.partType === "top" || horizontal)
+            && reachesBothSides
+            && Math.abs(bounds.minY - sideTop) <= PART_SNAP_DISTANCE_MM;
+        })
+        .sort((first, second) => (
+          Number(second.part.partType === "top") - Number(first.part.partType === "top")
+          || second.bounds.maxY - first.bounds.maxY
+        ))[0]?.part;
+      if (!top) return;
+      candidates.push({
+        ids: [bottom.id, top.id, ...frameSides.map((part) => part.id)],
+        anchorId: bottom.id,
+        frontDirection,
+        hasRearPanel: this.parts.some((part) => part.autoRearPanel && part.lockedTo === bottom.id),
+      });
+    });
+    return candidates.find((candidate) => !candidate.hasRearPanel) ?? candidates[0] ?? null;
+  }
+
+  addAutoRearPanel(insetMm = 2) {
+    const inset = Math.max(0, Math.round(insetMm));
+    const frameMatch = this.findAutoRearPanelFrame();
+    if (!frameMatch) return false;
+    const sourceParts = frameMatch.ids
+      .map((id) => this.getPart(id))
+      .filter((part) => part?.kind !== "hardware" && part.material !== "hdf-4");
+    if (sourceParts.length !== 4) return false;
+
+    const bounds = sourceParts.map((part) => getPartAabb(part));
+    const frame = {
+      minX: Math.min(...bounds.map((item) => item.minX)),
+      maxX: Math.max(...bounds.map((item) => item.maxX)),
+      minY: Math.min(...bounds.map((item) => item.minY)),
+      maxY: Math.max(...bounds.map((item) => item.maxY)),
+      minZ: Math.min(...bounds.map((item) => item.minZ)),
+      maxZ: Math.max(...bounds.map((item) => item.maxZ)),
+    };
+    const anchor = this.getPart(frameMatch.anchorId);
+    const frontDirection = frameMatch.frontDirection;
+    const verticalSize = frame.maxY - frame.minY - inset * 2;
+    const horizontalSize = ["x+", "x-"].includes(frontDirection)
+      ? frame.maxZ - frame.minZ - inset * 2
+      : frame.maxX - frame.minX - inset * 2;
+    if (verticalSize < MIN_SIZE_MM || horizontalSize < MIN_SIZE_MM) return false;
+
+    this.parts = this.parts.filter((part) => !(
+      part.autoRearPanel && part.lockedTo === anchor.id
+    ));
+    const rearPanel = this.addCustomPart({
+      material: "hdf-4",
+      lengthMm: ["x+", "x-"].includes(frontDirection) ? verticalSize : horizontalSize,
+      widthMm: ["x+", "x-"].includes(frontDirection) ? horizontalSize : verticalSize,
+    });
+    rearPanel.name = `Задняя стенка ХДФ ${rearPanel.id.replace("part-", "")}`;
+    rearPanel.autoRearPanel = true;
+    rearPanel.rearPanelInsetMm = inset;
+    rearPanel.attachedTo = anchor.id;
+    rearPanel.lockedTo = anchor.id;
+    rearPanel.frontDirection = frontDirection;
+    rearPanel.yMm = frame.minY + inset;
+
+    if (frontDirection === "x+" || frontDirection === "x-") {
+      rearPanel.rotationZ = 90;
+      rearPanel.xMm = frontDirection === "x+" ? frame.minX - 2 : frame.maxX + 2;
+      rearPanel.zMm = (frame.minZ + frame.maxZ) / 2;
+    } else {
+      rearPanel.rotationX = 90;
+      rearPanel.xMm = (frame.minX + frame.maxX) / 2;
+      rearPanel.zMm = frontDirection === "z+" ? frame.minZ - 2 : frame.maxZ + 2;
+    }
+    return rearPanel;
   }
 
   addLeg() {
@@ -599,6 +749,12 @@ export class FurnitureModel {
       if (rigidIds.has(part.attachedTo) || rigidIds.has(part.lockedTo)) rigidIds.add(part.id);
     });
     const rigidParts = this.parts.filter((part) => rigidIds.has(part.id));
+    const movingConnections = this.connections
+      .filter((connection) => connection.partIds.every((partId) => rigidIds.has(partId)))
+      .map((connection) => ({
+        connection,
+        placement: getConfirmatPlacement(this, connection),
+      }));
     const lowestY = Math.min(...rigidParts.map((part) => getPartAabb(part).minY));
     if (lowestY + dyMm < 0) dyMm = -lowestY;
 
@@ -621,6 +777,12 @@ export class FurnitureModel {
       part.xMm = candidate.xMm;
       part.yMm = candidate.yMm;
       part.zMm = candidate.zMm;
+    });
+    const translationByAxis = { x: dxMm, y: dyMm, z: dzMm };
+    movingConnections.forEach(({ connection, placement }) => {
+      if (!placement) return;
+      const delta = translationByAxis[placement.spanAxis] ?? 0;
+      connection.positionsMm = placement.values.map((value) => value + delta);
     });
     return { moved: true, snappedTo: null, connected: connectedPartIds };
   }
@@ -693,18 +855,11 @@ export class FurnitureModel {
     if (!Number.isFinite(positionMm)) return false;
     const placement = getConfirmatPlacement(this, connection);
     if (!placement || index >= placement.values.length) return false;
-    const clearance = Math.min(
-      CONFIRMAT_HEAD_RADIUS_MM,
-      (placement.spanMax - placement.spanMin) / 2,
-    );
-    const roundedMinimum = Math.ceil(placement.spanMin + clearance);
-    const roundedMaximum = Math.floor(placement.spanMax - clearance);
-    const minimum = roundedMinimum <= roundedMaximum
-      ? roundedMinimum
-      : Math.round((placement.spanMin + placement.spanMax) / 2);
-    const maximum = roundedMinimum <= roundedMaximum ? roundedMaximum : minimum;
     connection.positionsMm = [...placement.values];
-    connection.positionsMm[index] = Math.round(Math.max(minimum, Math.min(maximum, positionMm)));
+    connection.positionsMm[index] = Math.round(Math.max(
+      placement.minimumValue,
+      Math.min(placement.maximumValue, positionMm),
+    ));
     return connection.positionsMm[index];
   }
 
@@ -736,6 +891,60 @@ export class FurnitureModel {
       return copy;
     });
     return copies;
+  }
+
+  importModel(state, marginMm = 80) {
+    const sourceParts = Array.isArray(state?.parts) ? state.parts : [];
+    if (!sourceParts.length) return [];
+    const sourceConnections = Array.isArray(state?.connections) ? state.connections : [];
+    const sourceBounds = sourceParts.map((part) => getPartAabb(part));
+    const sourceMinX = Math.min(...sourceBounds.map((bounds) => bounds.minX));
+    const sourceMaxX = Math.max(...sourceBounds.map((bounds) => bounds.maxX));
+    const sourceMinZ = Math.min(...sourceBounds.map((bounds) => bounds.minZ));
+    const sourceMaxZ = Math.max(...sourceBounds.map((bounds) => bounds.maxZ));
+    const existingBounds = this.parts.map((part) => getPartAabb(part));
+    const offsetX = existingBounds.length
+      ? Math.max(...existingBounds.map((bounds) => bounds.maxX)) + marginMm - sourceMinX
+      : -(sourceMinX + sourceMaxX) / 2;
+    const offsetZ = existingBounds.length
+      ? (Math.min(...existingBounds.map((bounds) => bounds.minZ))
+        + Math.max(...existingBounds.map((bounds) => bounds.maxZ))
+        - sourceMinZ - sourceMaxZ) / 2
+      : -(sourceMinZ + sourceMaxZ) / 2;
+    const idMap = new Map();
+    const groupMap = new Map();
+    sourceParts.forEach((part) => idMap.set(part.id, `part-${this.nextPartNumber++}`));
+    sourceParts.forEach((part) => {
+      if (part.groupId && !groupMap.has(part.groupId)) {
+        groupMap.set(part.groupId, `imported-group-${crypto.randomUUID()}`);
+      }
+    });
+    const imported = sourceParts.map((source) => {
+      const part = JSON.parse(JSON.stringify(source));
+      part.id = idMap.get(source.id);
+      part.name = source.name;
+      part.xMm = Math.round((source.xMm + offsetX) * 2) / 2;
+      part.zMm = Math.round((source.zMm + offsetZ) * 2) / 2;
+      part.attachedTo = idMap.get(source.attachedTo) ?? null;
+      part.lockedTo = idMap.get(source.lockedTo) ?? null;
+      if (source.groupId) part.groupId = groupMap.get(source.groupId);
+      this.parts.push(part);
+      return part;
+    });
+    sourceConnections.forEach((source) => {
+      const partIds = source.partIds?.map((id) => idMap.get(id)).filter(Boolean) ?? [];
+      if (partIds.length !== source.partIds?.length) return;
+      const connection = {
+        ...JSON.parse(JSON.stringify(source)),
+        id: `connection-${this.nextConnectionNumber++}`,
+        partIds,
+      };
+      const placement = getConfirmatPlacement(this, connection);
+      if (placement) connection.positionsMm = [...placement.values];
+      this.connections.push(connection);
+    });
+    this.syncConnectedSideFronts();
+    return imported;
   }
 
   deleteParts(ids) {
@@ -803,6 +1012,10 @@ export class FurnitureModel {
       });
     });
     this.syncConnectedSideFronts();
+    this.connections.forEach((connection) => {
+      const placement = getConfirmatPlacement(this, connection);
+      if (placement) connection.positionsMm = [...placement.values];
+    });
   }
 }
 

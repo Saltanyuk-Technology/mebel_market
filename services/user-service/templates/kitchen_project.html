@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#211b17"><meta name="color-scheme" content="light">
+    <title>{{ project['name'] }} — Mebel Business</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='company.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='kitchen-project.css') }}">
+    <script src="{{ url_for('static', filename='company.js') }}" defer></script>
+  </head>
+  <body class="project-workspace-page">
+    <aside class="sidebar">
+      <a class="logo" href="/company"><i>m</i><span>mebel</span><small>business</small></a>
+      <nav>
+        <a href="/company"><span>←</span>В кабинет</a>
+        <a class="active" href="#overview"><span>□</span>Проект</a>
+        <a href="#furniture"><span>◇</span>Элементы <b>{{ furniture|length }}</b></a>
+      </nav>
+      <div class="sidebar-bottom"><button id="company-logout" type="button"><span>↪</span>Выйти</button></div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <button id="mobile-menu" class="mobile-menu" type="button" aria-label="Открыть меню">☰</button>
+        <div class="breadcrumbs"><a href="/company">Проекты кухни</a><b>/</b><strong>{{ project['name'] }}</strong></div>
+        <div class="top-actions"><div class="user-avatar">{{ user['firstname'][0] | upper }}{{ user['secondname'][0] | upper }}</div><div class="user-copy"><strong>{{ user['firstname'] }} {{ user['secondname'] }}</strong><small>{{ user['email'] }}</small></div></div>
+      </header>
+
+      <div class="content project-content" id="overview">
+        <section class="project-hero">
+          <div><span>Проект кухни</span><h1>{{ project['name'] }}</h1><p>Здесь хранятся помещение, отдельные элементы кухни и итоговая сцена расстановки.</p></div>
+          <a href="/company">← Все проекты</a>
+        </section>
+
+        <section class="project-structure" aria-label="Состав проекта">
+          <article class="workspace-card room-card">
+            <div class="workspace-card-icon">⌂</div><span>Шаг 1</span><h2>Помещение</h2>
+            <p>{% if room_ready %}Помещение сохранено. Можно изменить стены, окна и проёмы.{% else %}Сконструируйте и сохраните геометрию помещения.{% endif %}</p>
+            <small class="workspace-status {{ 'ready' if room_ready else '' }}">{{ 'Сохранено' if room_ready else 'Не создано' }}</small>
+            <a href="http://127.0.0.1:5173/constructor/?kitchenProject={{ project['id'] }}&mode=room">{{ 'Редактировать помещение' if room_ready else 'Создать помещение' }} →</a>
+          </article>
+          <article class="workspace-card furniture-card">
+            <div class="workspace-card-icon">◇</div><span>Шаг 2</span><h2>Элементы кухни</h2>
+            <p>Отдельные нижние и верхние шкафы, пеналы и другие корпуса.</p>
+            <small class="workspace-status {{ 'ready' if furniture else '' }}">{{ furniture|length }} элементов</small>
+            <a href="http://127.0.0.1:5174/editor/?new=1&kitchenProject={{ project['id'] }}">Создать элемент →</a>
+          </article>
+          <article class="workspace-card layout-card">
+            <div class="workspace-card-icon">▦</div><span>Шаг 3</span><h2>Общая сцена</h2>
+            <p>Сохранённое помещение с расставленными в нём элементами кухни.</p>
+            <small class="workspace-status {{ 'ready' if placements_count else '' }}">{{ placements_count }} размещено</small>
+            <a class="{{ 'disabled-link' if not room_ready else '' }}" {% if room_ready %}href="http://127.0.0.1:5173/constructor/?kitchenProject={{ project['id'] }}&mode=layout"{% endif %}>Открыть расстановку →</a>
+          </article>
+        </section>
+
+        <section class="project-elements" id="furniture">
+          <div class="project-section-title"><div><span>Внутри проекта</span><h2>Элементы мебели</h2></div><a href="http://127.0.0.1:5174/editor/?new=1&kitchenProject={{ project['id'] }}">+ Создать элемент</a></div>
+          {% if furniture %}<div class="project-element-grid">{% for item in furniture %}<a class="project-element" href="http://127.0.0.1:5174/editor/?project={{ item['id'] }}&kitchenProject={{ project['id'] }}"><span>Элемент кухни</span><h3>{{ item['name'] }}</h3><p>{{ item['project_data']['model']['parts']|length if item['project_data'] and item['project_data'].get('model') else 0 }} деталей</p><b>Открыть в редакторе →</b></a>{% endfor %}</div>{% else %}<div class="project-empty"><div>◇</div><h3>Элементов пока нет</h3><p>Создайте новый шкаф или импортируйте ранее сохранённый корпус из своей библиотеки в редакторе мебели.</p><a href="http://127.0.0.1:5174/editor/?new=1&kitchenProject={{ project['id'] }}">Создать первый элемент</a></div>{% endif %}
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

@@ -30,6 +30,7 @@ button { color: inherit; }
 .brand strong em { margin-left: 3px; color: var(--muted); font-size: 8px; font-style: normal; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .brand small { margin-top: 3px; color: var(--muted); font-size: 11px; letter-spacing: .04em; }
 .tool-group { display: flex; align-items: center; gap: 6px; }
+.kitchen-project-title { max-width: 170px; overflow: hidden; color: var(--accent); font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .tool-group + .tool-group { padding-left: 16px; border-left: 1px solid var(--line); }
 .view-tools { margin-left: auto; }
 .platform-actions { display: flex; align-items: center; gap: 6px; padding-left: 14px; border-left: 1px solid var(--line); }
@@ -67,6 +68,20 @@ kbd { padding: 1px 4px; border: 1px solid var(--line-strong); border-radius: 3px
 .delete-button:hover { background: rgba(255,111,115,.08); }
 
 .element-library { display: grid; gap: 9px; }
+.project-furniture-heading { display: flex; align-items: center; justify-content: space-between; }
+.project-furniture-heading h2 { margin: 0; }
+.project-furniture-heading button { width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 5px; background: #fff; cursor: pointer; }
+.project-furniture-list { display: grid; gap: 7px; }
+.project-furniture-item { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: #f8fafb; }
+.project-furniture-item strong, .project-furniture-item small { display: block; }
+.project-furniture-item strong { font-size: 11px; }
+.project-furniture-item small, .project-furniture-empty { margin: 3px 0 10px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.project-furniture-item button { min-height: 29px; padding: 0 8px; border: 1px solid var(--accent); border-radius: 5px; color: var(--accent); background: #fff; cursor: pointer; font-size: 10px; font-weight: 700; }
+.project-furniture-item button.active { color: #fff; background: var(--accent); }
+.layout-workspace .element-library, .layout-workspace .catalog-help { display: none; }
+.layout-workspace .project-furniture { border-bottom: 0; }
+.placement-properties { margin-top: 12px; padding: 12px; border: 1px solid #efd1c3; border-radius: 7px; background: #fff8f4; }
+.placement-properties > strong { display: block; margin-bottom: 8px; font-size: 11px; }
 .element-library h2 { margin-bottom: 5px; }
 .element-card { width: 100%; min-height: 68px; display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: #f8f9fa; text-align: left; cursor: pointer; transition: border-color .15s, background .15s, transform .15s; }
 .element-card:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }

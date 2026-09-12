@@ -23,5 +23,6 @@ def configure_app(app) -> None:
 def hypercorn_config() -> Config:
     config = Config()
     config.bind = [f"{HOST}:{PORT}"]
+    config.loglevel = "WARNING"
     config.use_reloader = False
     return config

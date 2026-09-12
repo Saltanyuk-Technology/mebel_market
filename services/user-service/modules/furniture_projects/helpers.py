@@ -10,6 +10,7 @@ def project_json(row, include_data: bool = False) -> dict:
     result = {
         "id": str(row["id"]),
         "name": row["name"],
+        "kitchenProjectId": str(row["kitchen_project_id"]) if row.get("kitchen_project_id") else None,
         "autosaved": row["autosaved"],
         "createdAt": row["created_at"].isoformat(),
         "updatedAt": row["updated_at"].isoformat(),

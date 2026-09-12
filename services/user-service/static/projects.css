@@ -1,4 +1,23 @@
 .new-project-link { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 9px 12px; font-size: 11px; font-weight: 700; }
+.kitchen-projects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.kitchen-project { min-height: 190px; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(135deg,#fff,#faf6f1); }
+.kitchen-project > span { color: var(--orange); font-size: 9px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+.kitchen-project h3 { margin: 12px 0 7px; font-size: 21px; }
+.kitchen-project p { margin: 0; color: var(--muted); font-size: 11px; }
+.kitchen-project-actions { display: flex; gap: 8px; margin-top: 28px; }
+.kitchen-project-actions a { padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px; background: #fff; font-size: 10px; font-weight: 700; }
+.kitchen-project-actions .primary-project-action { color: #fff; border-color: var(--text); background: var(--text); }
+.dashboard-modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; background: rgba(33,27,23,.48); backdrop-filter: blur(4px); }
+.dashboard-modal[hidden] { display: none; }
+.dashboard-modal form { width: min(440px,100%); padding: 25px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: 0 24px 70px rgba(33,27,23,.25); }
+.dashboard-modal form > span { color: var(--orange); font-size: 9px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
+.dashboard-modal h2 { margin: 7px 0 20px; }
+.dashboard-modal label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.dashboard-modal input { height: 43px; padding: 0 12px; border: 1px solid var(--line); border-radius: 7px; font: inherit; }
+.dashboard-modal form > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.dashboard-modal button { min-height: 38px; padding: 0 13px; border: 1px solid var(--line); border-radius: 7px; background: #fff; cursor: pointer; font-weight: 700; }
+.dashboard-modal button[type=submit] { color: #fff; border-color: var(--orange); background: var(--orange); }
+.dashboard-modal p { color: #9b3e25; font-size: 11px; }
 .furniture-projects { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .furniture-project { min-height: 170px; padding: 22px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; background: #fff; transition: .2s; }
 .furniture-project:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(51,38,29,.08); }
@@ -7,4 +26,4 @@
 .furniture-project p { margin: 0; color: var(--muted); font-size: 11px; }
 .furniture-project b { margin-top: auto; font-size: 11px; }
 @media (max-width: 1050px) { .furniture-projects { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 760px) { .furniture-projects { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .furniture-projects, .kitchen-projects { grid-template-columns: 1fr; } }
