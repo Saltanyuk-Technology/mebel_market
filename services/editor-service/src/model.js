@@ -1020,11 +1020,16 @@ export class FurnitureModel {
 }
 
 export class History {
-  constructor(model, onChange) {
+  constructor(model, onChange, { limit = 100 } = {}) {
     this.model = model;
     this.onChange = onChange;
     this.undoStack = [];
     this.redoStack = [];
+    this.limit = limit;
+  }
+
+  trim() {
+    if (this.undoStack.length > this.limit) this.undoStack.splice(0, this.undoStack.length - this.limit);
   }
 
   commit(label, mutation) {
@@ -1033,6 +1038,7 @@ export class History {
     if (result === false) return false;
     const after = this.model.toJSON();
     this.undoStack.push({ label, before, after });
+    this.trim();
     this.redoStack.length = 0;
     this.onChange?.();
     return result ?? true;
@@ -1040,6 +1046,7 @@ export class History {
 
   push(label, before, after) {
     this.undoStack.push({ label, before, after });
+    this.trim();
     this.redoStack.length = 0;
     this.onChange?.();
   }
@@ -1057,6 +1064,7 @@ export class History {
     if (!entry) return;
     this.model.restore(entry.after);
     this.undoStack.push(entry);
+    this.trim();
     this.onChange?.();
   }
 }

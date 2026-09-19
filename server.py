@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SERVICE_LABELS = {
     "user": "Пользовательский сайт",
+    "editor-api": "API редактора",
     "constructor": "Конструктор",
     "editor": "Редактор",
 }
@@ -62,6 +63,12 @@ def definitions() -> tuple[Service, ...]:
             (sys.executable, "server.py"),
             "http://127.0.0.1:8080/",
         ),
+        Service(
+            "editor-api",
+            ROOT / "services/editor-service",
+            (sys.executable, "-m", "api.server"),
+            "http://127.0.0.1:8081/api/editor/health",
+        ),
         Service("constructor", ROOT / "services/constructor-service", run_script, "http://127.0.0.1:5173/constructor/"),
         Service("editor", ROOT / "services/editor-service", run_script, "http://127.0.0.1:5174/editor/"),
     )
@@ -85,7 +92,7 @@ def start_service(service: Service) -> subprocess.Popen:
 
 
 def watched_state(service: Service) -> dict[Path, int]:
-    if service.name != "user":
+    if service.name not in {"user", "editor-api"}:
         return {}
     extensions = {".py", ".html", ".css", ".js"}
     return {
@@ -132,6 +139,7 @@ def main() -> int:
     try:
         print("Запуск сервисов Mebel Market...", flush=True)
         ensure_port_is_free("127.0.0.1", 8080, "пользовательский сервис")
+        ensure_port_is_free("127.0.0.1", 8081, "API редактора")
         ensure_port_is_free("127.0.0.1", 5173, "конструктор")
         ensure_port_is_free("127.0.0.1", 5174, "редактор")
         running: list[list] = []
@@ -148,7 +156,7 @@ def main() -> int:
                 service, process, previous_state = item
                 current_state = watched_state(service)
                 if previous_state and current_state != previous_state:
-                    print("Изменения в auth обнаружены — перезапуск...", flush=True)
+                    print(f"Изменения в {SERVICE_LABELS[service.name]} обнаружены — перезапуск...", flush=True)
                     if process.poll() is None:
                         process.terminate()
                         try:

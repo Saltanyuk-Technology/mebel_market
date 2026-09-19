@@ -55,7 +55,7 @@
 
         <section class="project-elements" id="furniture">
           <div class="project-section-title"><div><span>Внутри проекта</span><h2>Элементы мебели</h2></div><a href="http://127.0.0.1:5174/editor/?new=1&kitchenProject={{ project['id'] }}">+ Создать элемент</a></div>
-          {% if furniture %}<div class="project-element-grid">{% for item in furniture %}<a class="project-element" href="http://127.0.0.1:5174/editor/?project={{ item['id'] }}&kitchenProject={{ project['id'] }}"><span>Элемент кухни</span><h3>{{ item['name'] }}</h3><p>{{ item['project_data']['model']['parts']|length if item['project_data'] and item['project_data'].get('model') else 0 }} деталей</p><b>Открыть в редакторе →</b></a>{% endfor %}</div>{% else %}<div class="project-empty"><div>◇</div><h3>Элементов пока нет</h3><p>Создайте новый шкаф или импортируйте ранее сохранённый корпус из своей библиотеки в редакторе мебели.</p><a href="http://127.0.0.1:5174/editor/?new=1&kitchenProject={{ project['id'] }}">Создать первый элемент</a></div>{% endif %}
+          {% if furniture %}<div class="project-element-grid">{% for item in furniture %}<a class="project-element" href="http://127.0.0.1:5174/editor/?project={{ item['id'] }}&kitchenProject={{ project['id'] }}"><span>Элемент кухни</span><h3>{{ item['name'] }}</h3><p>Сохранён как неизменяемая ревизия</p><b>Открыть в редакторе →</b></a>{% endfor %}</div>{% else %}<div class="project-empty"><div>◇</div><h3>Элементов пока нет</h3><p>Создайте новый шкаф или импортируйте ранее сохранённый корпус из своей библиотеки в редакторе мебели.</p><a href="http://127.0.0.1:5174/editor/?new=1&kitchenProject={{ project['id'] }}">Создать первый элемент</a></div>{% endif %}
         </section>
       </div>
     </main>

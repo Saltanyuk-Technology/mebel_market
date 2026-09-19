@@ -12,12 +12,7 @@ from modules.auth.controller import controller as auth_controller
 from modules.company_profile.controller import controller as company_profile_controller
 from modules.platform.controller import controller as platform_controller
 from modules.user_profile.controller import controller as user_profile_controller
-from modules.furniture_projects.controller import controller as furniture_projects_controller
-from modules.furniture_projects.service import ensure_schema as ensure_furniture_projects_schema
-from modules.furniture_library.controller import controller as furniture_library_controller
-from modules.furniture_library.service import ensure_schema as ensure_furniture_library_schema
 from modules.kitchen_projects.controller import controller as kitchen_projects_controller
-from modules.kitchen_projects.service import ensure_schema as ensure_kitchen_projects_schema
 
 
 def create_app() -> Quart:
@@ -30,14 +25,9 @@ def create_app() -> Quart:
         user_profile_controller,
         company_profile_controller,
         admin_profile_controller,
-        furniture_projects_controller,
-        furniture_library_controller,
         kitchen_projects_controller,
     ):
         app.register_blueprint(controller)
-    app.before_serving(ensure_furniture_projects_schema)
-    app.before_serving(ensure_kitchen_projects_schema)
-    app.before_serving(ensure_furniture_library_schema)
     return app
 
 

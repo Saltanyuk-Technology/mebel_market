@@ -1,13 +1,15 @@
 import "./styles.css";
 import { constrainMeasurementPoint, FurnitureModel, getConfirmatPlacement, History } from "./model.js";
 import { FurnitureScene } from "./scene.js";
+import { ProjectConflictError, ProjectService } from "./application/ProjectService.js";
+import { SceneSynchronizer } from "./scene/SceneSynchronizer.js";
 
 const byId = (id) => document.getElementById(id);
 const STORAGE_KEY = "mebel-furniture-editor-workspace-v1";
-const PROJECT_API = "/api/furniture-projects";
-const LIBRARY_API = "/api/furniture-library";
+const projectService = new ProjectService();
 const editorUrlParams = new URLSearchParams(location.search);
 let currentProjectId = editorUrlParams.get("project");
+let currentRevisionId = null;
 let kitchenProjectId = editorUrlParams.get("kitchenProject");
 let currentProjectName = "";
 let draftId = editorUrlParams.get("draft");
@@ -47,6 +49,9 @@ const rulerSettings = {
   axisLock: savedWorkspace?.rulerSettings?.axisLock !== false,
 };
 const scene = new FurnitureScene(byId("scene-canvas"), byId("dimensions"));
+const sceneSynchronizer = new SceneSynchronizer({
+  applyChange: (change) => scene.applyEntityChange(change, model),
+});
 scene.setShowAllPartDimensions(showAllDimensions);
 scene.setRulerSettings(rulerSettings);
 if (savedWorkspace?.view) scene.restoreViewState(savedWorkspace.view);
@@ -467,20 +472,16 @@ saveProjectForm.addEventListener("submit", async (event) => {
   message.textContent = "";
   submit.disabled = true;
   try {
-    const response = await fetch(currentProjectId ? `${PROJECT_API}/${currentProjectId}` : PROJECT_API, {
-      method: currentProjectId ? "PUT" : "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: byId("project-name").value.trim(), data: workspaceData(), kitchenProjectId }),
+    const saved = await projectService.save({
+      definitionId: currentProjectId,
+      basedOnRevisionId: currentRevisionId,
+      name: byId("project-name").value.trim(),
+      workspace: workspaceData(),
+      kitchenProjectId,
     });
-    if (response.status === 401) {
-      message.textContent = "Войдите в кабинет компании, чтобы сохранить проект.";
-      message.hidden = false;
-      return;
-    }
-    if (!response.ok) throw new Error(`save_failed_${response.status}`);
-    const project = await response.json();
+    const project = saved.definition ?? { id: currentProjectId, name: byId("project-name").value.trim() };
     currentProjectId = project.id;
+    currentRevisionId = saved.revision.id;
     currentProjectName = project.name;
     kitchenProjectId ??= project.kitchenProjectId;
     localWorkspaceKey = `${STORAGE_KEY}-project-${project.id}`;
@@ -492,8 +493,12 @@ saveProjectForm.addEventListener("submit", async (event) => {
     byId("save-project").title = project.name;
     closeSaveProjectModal();
     showToast(`Проект «${project.name}» сохранён`);
-  } catch {
-    message.textContent = "Не удалось сохранить проект. Проверьте подключение к серверу и попробуйте ещё раз.";
+  } catch (error) {
+    message.textContent = error.status === 401
+      ? "Войдите в кабинет компании, чтобы сохранить проект."
+      : error instanceof ProjectConflictError
+        ? "Проект уже изменён в другом окне. Перезагрузите его перед сохранением."
+        : "Не удалось сохранить проект. Проверьте подключение к серверу и попробуйте ещё раз.";
     message.hidden = false;
   } finally {
     submit.disabled = false;
@@ -515,10 +520,7 @@ async function openLibraryModal() {
   list.innerHTML = '<p class="library-empty">Загрузка…</p>';
   byId("library-message").hidden = true;
   try {
-    const response = await fetch(LIBRARY_API, { credentials: "include" });
-    if (response.status === 401) throw new Error("auth");
-    if (!response.ok) throw new Error("load");
-    const { items } = await response.json();
+    const items = await projectService.listLibrary();
     if (!items.length) {
       list.innerHTML = '<p class="library-empty">В библиотеке пока ничего нет. Закройте окно и нажмите «В библиотеку».</p>';
       return;
@@ -530,13 +532,15 @@ async function openLibraryModal() {
       const name = document.createElement("strong");
       name.textContent = item.name;
       const details = document.createElement("small");
-      details.textContent = `${item.data?.model?.parts?.length ?? 0} деталей · обновлён ${new Date(item.updatedAt).toLocaleDateString("ru-RU")}`;
+      const partCount = (item.document?.entities?.panels?.length ?? 0) + (item.document?.entities?.hardwareInstances?.length ?? 0);
+      details.textContent = `${partCount} деталей · обновлён ${new Date(item.updatedAt).toLocaleDateString("ru-RU")}`;
       copy.append(name, details);
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = "Добавить копию";
       button.addEventListener("click", () => {
-        const imported = history.commit(`Импортировать «${item.name}»`, () => model.importModel(item.data?.model));
+        const importedWorkspace = item.document ? projectService.toWorkspace(item.document) : null;
+        const imported = history.commit(`Импортировать «${item.name}»`, () => model.importModel(importedWorkspace?.model));
         if (!imported?.length) return showToast("Шаблон не содержит деталей");
         selectedIds.clear();
         imported.forEach((part) => selectedIds.add(part.id));
@@ -562,16 +566,20 @@ byId("save-library-form").addEventListener("submit", async (event) => {
   submit.disabled = true;
   message.hidden = true;
   try {
-    const response = await fetch(LIBRARY_API, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: byId("library-name").value.trim(), data: workspaceData(), sourceProjectId: currentProjectId }),
-    });
-    if (!response.ok) throw new Error(response.status === 401 ? "auth" : "save");
-    const item = await response.json();
+    if (!currentProjectId) {
+      const saved = await projectService.save({
+        name: currentProjectName || byId("library-name").value.trim(),
+        workspace: workspaceData(), kitchenProjectId,
+      });
+      currentProjectId = saved.definition.id;
+      currentRevisionId = saved.revision.id;
+      currentProjectName = saved.definition.name;
+    }
+    const { item } = await projectService.addToLibrary(currentProjectId, byId("library-name").value.trim());
     closeSaveLibraryModal();
     showToast(`Шаблон «${item.name}» сохранён`);
   } catch (error) {
-    message.textContent = error.message === "auth" ? "Войдите в кабинет компании, чтобы сохранить шаблон." : "Не удалось сохранить шаблон.";
+    message.textContent = error.status === 401 ? "Войдите в кабинет компании, чтобы сохранить шаблон." : "Не удалось сохранить шаблон.";
     message.hidden = false;
   } finally { submit.disabled = false; }
 });
@@ -1024,7 +1032,8 @@ scene.canvas.addEventListener("pointermove", (event) => {
     const valueMm = connection ? scene.confirmatDragValue(event, connection) : null;
     if (valueMm === null) return;
     const positionMm = model.moveConfirmat(drag.id, drag.pointIndex, valueMm);
-    scene.syncTransforms(model);
+    sceneSynchronizer.enqueue({ type: "transform", entityId: drag.id });
+    sceneSynchronizer.flush();
     const viewport = byId("viewport").getBoundingClientRect();
     const badge = byId("cursor-badge");
     badge.textContent = positionMm === false ? "Нельзя переместить" : `${positionMm} мм`;
@@ -1050,7 +1059,8 @@ scene.canvas.addEventListener("pointermove", (event) => {
   byId("status-x").textContent = part.xMm;
   byId("status-y").textContent = part.yMm;
   byId("status-z").textContent = part.zMm;
-  scene.syncTransforms(model);
+  sceneSynchronizer.enqueue({ type: "transform", entityId: drag.id });
+  sceneSynchronizer.flush();
   const viewport = byId("viewport").getBoundingClientRect();
   const badge = byId("cursor-badge");
   badge.textContent = result === false
@@ -1190,10 +1200,9 @@ render();
 async function loadServerProject() {
   if (!currentProjectId) return;
   try {
-    const response = await fetch(`${PROJECT_API}/${currentProjectId}`, { credentials: "include" });
-    if (!response.ok) throw new Error("load_failed");
-    const project = await response.json();
-    const data = project.data;
+    const loaded = await projectService.load(currentProjectId);
+    const project = loaded.definition;
+    const data = loaded.workspace;
     if (!data?.model) throw new Error("invalid_project");
     model.restore(data.model);
     selectedIds.clear();
@@ -1211,6 +1220,7 @@ async function loadServerProject() {
     scene.setShowAllPartDimensions(showAllDimensions);
     scene.setRulerSettings(rulerSettings);
     currentProjectName = project.name;
+    currentRevisionId = loaded.revision.id;
     kitchenProjectId ??= project.kitchenProjectId;
     byId("save-project").classList.add("saved");
     byId("save-project").textContent = "Сохранено";
@@ -1227,45 +1237,15 @@ async function loadServerProject() {
 function queueServerAutosave() {
   if (!model.parts.length) return;
   clearTimeout(serverAutosaveTimer);
-  serverAutosaveTimer = setTimeout(async () => {
-    try {
-      const response = await fetch(`${PROJECT_API}/autosave`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectId: currentProjectId,
-          name: currentProjectName,
-          data: workspaceData(),
-          kitchenProjectId,
-        }),
-      });
-      if (!response.ok) return;
-      const project = await response.json();
-      currentProjectId = project.id;
-      currentProjectName = project.name;
-      localWorkspaceKey = `${STORAGE_KEY}-project-${project.id}`;
-      const params = new URLSearchParams({ project: project.id });
-      if (kitchenProjectId) params.set("kitchenProject", kitchenProjectId);
-      window.history.replaceState({}, "", `${location.pathname}?${params}`);
-      byId("save-project").classList.add("saved");
-      byId("save-project").textContent = "Автосохранено";
-      byId("save-project").title = project.name;
-    } catch {
-      // The independent local draft remains available if the server is offline.
-    }
+  serverAutosaveTimer = setTimeout(() => {
+    projectService.saveDraft(currentProjectId ?? draftId ?? "workspace", workspaceData());
+    byId("save-project").textContent = currentProjectId ? "Есть изменения" : "Сохранить";
   }, 2000);
 }
 
 window.addEventListener("beforeunload", () => {
   if (!model.parts.length) return;
-  const payload = JSON.stringify({
-    projectId: currentProjectId,
-    name: currentProjectName,
-    data: workspaceData(),
-    kitchenProjectId,
-  });
-  navigator.sendBeacon(`${PROJECT_API}/autosave`, new Blob([payload], { type: "application/json" }));
+  projectService.saveDraft(currentProjectId ?? draftId ?? "workspace", workspaceData());
 });
 
 loadServerProject();

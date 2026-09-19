@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { renderableParts } from "../furniture/FurnitureInstanceModel.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { formatMm, mmToWorld, worldToMm } from "../core/units.js";
 import { getCameraFacingWallSurface, getWallDimensionSpan, isWallPositiveFaceVisible } from "../geometry/polygon.js";
@@ -231,14 +232,14 @@ export class SceneManager {
 
   syncFurniture(furniture, placements, selectedPlacementId = null) {
     this.clearGroup(this.furnitureGroup);
-    const projects = new Map((furniture ?? []).map((item) => [item.id, item]));
+    const projects = new Map((furniture ?? []).map((item) => [item.definition.id, item]));
     (placements ?? []).forEach((placement) => {
-      const project = projects.get(placement.furnitureProjectId);
-      const parts = project?.data?.model?.parts;
+      const project = projects.get(placement.definitionId);
+      const parts = renderableParts(project?.revision?.document);
       if (!Array.isArray(parts)) return;
       const root = new THREE.Group();
-      root.position.set(mmToWorld(placement.xMm ?? 0), 0, mmToWorld(placement.zMm ?? 0));
-      root.rotation.y = THREE.MathUtils.degToRad(placement.rotationY ?? 0);
+      root.position.set(mmToWorld(placement.xMm), 0, mmToWorld(placement.zMm));
+      root.rotation.y = THREE.MathUtils.degToRad(placement.rotationY);
       root.userData = { type: "furniture", id: placement.id };
       parts.forEach((part) => {
         const selected = placement.id === selectedPlacementId;

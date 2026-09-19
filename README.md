@@ -5,6 +5,7 @@
 - `services/user-service` — пользователи, авторизация, профили и кабинеты;
 - `services/constructor-service` — клиент конструктора;
 - `services/editor-service` — клиент редактора;
+- `services/editor-service/api` — независимый API предметных данных редактора и конструктора;
 - `libs/airqore_orm` — локальная ORM-библиотека, входящая в репозиторий;
 - корневой `server.py` — оркестратор для одновременного запуска всех сервисов.
 
@@ -37,10 +38,10 @@ npm --prefix services/editor-service install
 python server.py
 ```
 
-Команда поднимает пользовательский сервис на постоянном порту `8080`, конструктор на `5173` и редактор на
-`5174`. Auth автоматически перезапускается при изменении Python, HTML, CSS и
-JavaScript-файлов, а Vite
-обновляет frontend-сервисы. Нажатие `Ctrl+C` останавливает все три процесса.
+Команда поднимает пользовательский сервис на порту `8080`, API редактора на `8081`,
+конструктор на `5173` и редактор на `5174`. Python-сервисы автоматически
+перезапускаются при изменении исходных файлов, а Vite обновляет frontend-сервисы.
+Нажатие `Ctrl+C` останавливает все четыре процесса.
 
 ## Раздельный запуск
 
@@ -60,4 +61,37 @@ pnpm dev
 Set-Location services/editor-service
 pnpm dev
 # либо: npm run dev
+
+# Editor API (в отдельном окне)
+Set-Location services/editor-service
+python -m api.server
 ```
+
+API редактора использует отдельные переменные `EDITOR_DB_*` и отдельную PostgreSQL-базу
+`mebel_editor`. Адрес пользовательского сервиса для проверки сессий задаётся через
+`USER_SERVICE_URL`.
+
+Для локального PostgreSQL база создаётся один раз командой:
+
+```powershell
+Set-Location services/editor-service
+python -m api.create_database
+```
+
+При использовании Docker Compose поднимаются два независимых контейнера PostgreSQL:
+пользовательская база на порту `5433` и база редактора на порту `5434`.
+
+Существующие проекты переносятся без изменения исходной базы. Команды запускаются из
+`services/editor-service` при настроенных `DB_*` и `EDITOR_DB_*`:
+
+```powershell
+python -m api.migrate_legacy --dry-run
+python -m api.migrate_legacy
+python -m api.migrate_legacy --verify-only
+```
+
+Повторный запуск безопасен: UUID и контрольные суммы уже перенесённых записей сохраняются.
+Для точечного переноса доступен параметр `--source-project-id UUID`.
+
+Архитектура и эксплуатация описаны в [Editor API](docs/editor-api.md),
+[переносе данных](docs/data-migration.md) и [расширении каталога](docs/catalog-extension.md).

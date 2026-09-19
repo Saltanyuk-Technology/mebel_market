@@ -219,6 +219,18 @@ export class FurnitureScene {
     this.requestRender();
   }
 
+  applyEntityChange(change, model = this.model) {
+    if (change.type === "transform") {
+      const part = model?.getPart(change.entityId);
+      if (part && this.meshes.has(change.entityId)) {
+        this.updatePartTransform(part);
+        this.requestRender();
+        return;
+      }
+    }
+    this.sync(model, this.selectedIds, this.selectedConnectionId, this.selectedConnectionPointIndex);
+  }
+
   repairBrokenCameraFocus() {
     if (!this.partsGroup.children.length) return;
     const focusDistance = this.camera.position.distanceTo(this.controls.target);

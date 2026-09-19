@@ -1,48 +1,57 @@
-from quart import redirect, render_template
+import asyncio
 
-from database import orm
+from quart import redirect, render_template, request
+
+from editor_client import EditorApiError, editor_client
 from modules.auth.service import get_current_user
-from modules.furniture_projects.service import list_for_user
-from modules.kitchen_projects.service import list_for_user as list_kitchen_projects
 from .helpers import ROLE, TEMPLATE
+
+
+def _cookie():
+    return request.headers.get("Cookie", "")
 
 
 async def dashboard():
     user = await get_current_user()
     if not user or user["disabled"] or user["category"] != ROLE:
         return redirect("/")
-    projects = await list_for_user(int(user["id"]))
-    kitchen_projects = await list_kitchen_projects(int(user["id"]))
-    return await render_template(TEMPLATE, user=user, projects=projects, kitchen_projects=kitchen_projects)
+    unavailable = False
+    try:
+        kitchen_projects, projects = await asyncio.gather(
+            editor_client.list_kitchens(_cookie()),
+            editor_client.list_definitions(_cookie()),
+        )
+        projects = [item for item in projects if not item.get("autosaved")]
+        counts = {}
+        for item in projects:
+            if item.get("kitchenProjectId"):
+                counts[item["kitchenProjectId"]] = counts.get(item["kitchenProjectId"], 0) + 1
+        for kitchen in kitchen_projects:
+            kitchen["furniture_count"] = counts.get(kitchen["id"], 0)
+    except EditorApiError:
+        kitchen_projects, projects, unavailable = [], [], True
+    return await render_template(
+        TEMPLATE, user=user, projects=projects, kitchen_projects=kitchen_projects,
+        editor_api_unavailable=unavailable,
+    )
 
 
 async def kitchen_project(project_id):
     user = await get_current_user()
     if not user or user["disabled"] or user["category"] != ROLE:
         return redirect("/")
-    project = await orm.fetch_one(
-        """SELECT id, name, room_data, scene_data, created_at, updated_at
-           FROM kitchen_projects WHERE id = $1 AND user_id = $2""",
-        project_id, int(user["id"]),
-    )
-    if not project:
+    try:
+        payload, furniture = await asyncio.gather(
+            editor_client.get_kitchen(project_id, _cookie()),
+            editor_client.list_definitions(_cookie(), project_id),
+        )
+    except EditorApiError:
         return redirect("/company")
-    furniture = await orm.fetch_all(
-        """SELECT id, name, project_data, updated_at
-           FROM furniture_projects
-           WHERE kitchen_project_id = $1 AND user_id = $2 AND autosaved = FALSE
-           ORDER BY updated_at DESC""",
-        project_id, int(user["id"]),
-    )
-    room_data = project["room_data"] or {}
-    scene_data = project["scene_data"] or {}
-    room_ready = bool(room_data.get("walls"))
-    placements_count = len(scene_data.get("placements") or [])
+    project = payload["kitchen"]
+    furniture = [item for item in furniture if not item.get("autosaved")]
+    room_ready = bool((project.get("roomData") or {}).get("walls"))
+    placements_count = len(payload.get("instances") or [])
     return await render_template(
-        "kitchen_project.html",
-        user=user,
-        project=project,
-        furniture=furniture,
-        room_ready=room_ready,
-        placements_count=placements_count,
+        "kitchen_project.html", user=user, project=project, furniture=furniture,
+        room_ready=room_ready, placements_count=placements_count,
     )

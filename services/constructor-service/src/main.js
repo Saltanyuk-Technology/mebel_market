@@ -7,6 +7,7 @@ import { EditorController } from "./editor/EditorController.js";
 import { SceneManager } from "./scene/SceneManager.js";
 import { EditorUI } from "./ui/EditorUI.js";
 import { findFreeWallCenter } from "./geometry/polygon.js";
+import { FurnitureRepository } from "./furniture/FurnitureRepository.js";
 
 const room = new RoomModel();
 const constructorParams = new URLSearchParams(location.search);
@@ -19,6 +20,7 @@ let selectedPlacementId = null;
 let projectSaveTimer = null;
 let loadingProject = false;
 let furnitureDrag = null;
+const furnitureRepository = new FurnitureRepository();
 const ui = new EditorUI();
 const scene = new SceneManager(
   document.getElementById("scene-canvas"),
@@ -58,8 +60,10 @@ controller = new EditorController({
     const ground = scene.getGroundPoint(event);
     if (!ground) return true;
     const step = room.snapEnabled ? room.gridStepMm : 10;
-    furnitureDrag.placement.xMm = Math.round((ground.xMm + furnitureDrag.offsetX) / step) * step;
-    furnitureDrag.placement.zMm = Math.round((ground.zMm + furnitureDrag.offsetZ) / step) * step;
+    furnitureDrag.placement.moveTo({
+      xMm: Math.round((ground.xMm + furnitureDrag.offsetX) / step) * step,
+      zMm: Math.round((ground.zMm + furnitureDrag.offsetZ) / step) * step,
+    });
     scene.syncFurniture(projectFurniture, placements, selectedPlacementId);
     renderProjectFurniture();
     return true;
@@ -116,23 +120,24 @@ function renderProjectFurniture() {
     row.className = "project-furniture-item";
     const copy = document.createElement("span");
     const name = document.createElement("strong");
-    name.textContent = item.name;
+    name.textContent = item.definition.name;
     const count = document.createElement("small");
-    count.textContent = `${item.data?.model?.parts?.length ?? 0} деталей`;
+    count.textContent = `${(item.revision.document?.entities?.panels?.length ?? 0) + (item.revision.document?.entities?.hardwareInstances?.length ?? 0)} деталей`;
     copy.append(name, count);
-    const ownPlacements = placements.filter((placement) => placement.furnitureProjectId === item.id);
+    const ownPlacements = placements.filter((placement) => placement.definitionId === item.definition.id);
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = ownPlacements.length ? `Добавить ещё · ${ownPlacements.length}` : "Добавить";
-    button.addEventListener("click", () => {
-      const placement = {
-        id: crypto.randomUUID(), furnitureProjectId: item.id,
-        xMm: ownPlacements.length * 700, zMm: 0, rotationY: 0,
-      };
-      placements.push(placement);
-      selectedPlacementId = placement.id;
-      renderAll();
-      ui.showToast(`«${item.name}» добавлен в помещение`);
+    button.addEventListener("click", async () => {
+      try {
+        const placement = await furnitureRepository.createInstance(kitchenProjectId, item);
+        placement.moveTo({ xMm: ownPlacements.length * 700, zMm: 0 });
+        await furnitureRepository.saveInstance(kitchenProjectId, placement);
+        placements.push(placement);
+        selectedPlacementId = placement.id;
+        renderAll();
+        ui.showToast(`«${item.definition.name}» добавлен в помещение`);
+      } catch { ui.showToast("Не удалось добавить мебель"); }
     });
     row.append(copy, button);
     row.addEventListener("click", (event) => {
@@ -147,18 +152,22 @@ function renderProjectFurniture() {
   const properties = document.getElementById("placement-properties");
   properties.hidden = !selected;
   if (selected) {
-    const furniture = projectFurniture.find((item) => item.id === selected.furnitureProjectId);
-    document.getElementById("placement-title").textContent = furniture?.name ?? "Размещение";
+    const furniture = projectFurniture.find((item) => item.definition.id === selected.definitionId);
+    document.getElementById("placement-title").textContent = furniture?.definition.name ?? "Размещение";
     document.getElementById("placement-x").value = selected.xMm;
     document.getElementById("placement-z").value = selected.zMm;
     document.getElementById("placement-rotation").value = selected.rotationY;
+    const editLink = document.getElementById("edit-furniture");
+    editLink.href = `http://127.0.0.1:5174/editor/?project=${selected.definitionId}&kitchenProject=${kitchenProjectId}`;
+    const update = document.getElementById("update-furniture");
+    update.hidden = !furniture || furniture.revision.id === selected.revisionId;
   }
 }
 
 function updatePlacement(changes) {
   const selected = placements.find((placement) => placement.id === selectedPlacementId);
   if (!selected) return;
-  Object.assign(selected, changes);
+  selected.moveTo(changes);
   renderAll();
 }
 
@@ -169,21 +178,42 @@ function updatePlacement(changes) {
     updatePlacement(key === "rotation" ? { rotationY: value } : { [`${key}Mm`]: value });
   });
 });
-document.getElementById("remove-placement").addEventListener("click", () => {
+document.getElementById("remove-placement").addEventListener("click", async () => {
+  if (selectedPlacementId) await furnitureRepository.deleteInstance(kitchenProjectId, selectedPlacementId).catch(() => {});
   placements = placements.filter((placement) => placement.id !== selectedPlacementId);
   selectedPlacementId = null;
   renderAll();
+});
+document.getElementById("update-furniture").addEventListener("click", async () => {
+  const selected = placements.find((placement) => placement.id === selectedPlacementId);
+  const furniture = selected && projectFurniture.find((item) => item.definition.id === selected.definitionId);
+  if (!selected || !furniture || furniture.revision.id === selected.revisionId) return;
+  try {
+    const { preview } = await furnitureRepository.previewUpdate(kitchenProjectId, selected.id, furniture.revision.id);
+    if (!preview.valid) {
+      ui.showToast(preview.violations.some((item) => item.code === "INSTANCE_COLLISION")
+        ? "Обновление пересекается с другой мебелью" : "Обновление не помещается в комнате");
+      return;
+    }
+    const result = await furnitureRepository.applyUpdate(kitchenProjectId, selected.id, furniture.revision.id);
+    selected.revisionId = result.instance.revisionId;
+    selected.transform = result.instance.transform;
+    renderAll();
+    ui.showToast("Экземпляр обновлён до новой ревизии");
+  } catch (error) {
+    const preview = error.data?.preview;
+    ui.showToast(preview ? "Новая ревизия не может быть размещена безопасно" : "Не удалось обновить мебель");
+  }
 });
 
 async function loadKitchenProject() {
   if (!kitchenProjectId) return;
   loadingProject = true;
   try {
-    const response = await fetch(`/api/kitchen-projects/${kitchenProjectId}`, { credentials: "include" });
-    if (!response.ok) throw new Error();
-    kitchenProject = await response.json();
-    projectFurniture = kitchenProject.furniture ?? [];
-    placements = Array.isArray(kitchenProject.sceneData?.placements) ? kitchenProject.sceneData.placements : [];
+    const loaded = await furnitureRepository.loadKitchen(kitchenProjectId);
+    kitchenProject = loaded.kitchen;
+    projectFurniture = loaded.definitions;
+    placements = loaded.instances;
     if (Array.isArray(kitchenProject.roomData?.walls)) room.restore(kitchenProject.roomData);
     const title = document.getElementById("kitchen-project-title");
     title.textContent = `${kitchenProject.name} · ${workspaceMode === "layout" ? "Общая сцена" : "Помещение"}`;
@@ -202,14 +232,11 @@ function queueProjectSave() {
   clearTimeout(projectSaveTimer);
   projectSaveTimer = setTimeout(async () => {
     try {
-      const data = workspaceMode === "layout"
-        ? { name: kitchenProject.name, sceneData: { placements } }
-        : { name: kitchenProject.name, roomData: room.toJSON() };
-      const response = await fetch(`/api/kitchen-projects/${kitchenProjectId}`, {
-        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error();
+      if (workspaceMode === "layout") {
+        await Promise.all(placements.map((placement) => furnitureRepository.saveInstance(kitchenProjectId, placement)));
+      } else {
+        await furnitureRepository.saveKitchen(kitchenProjectId, { name: kitchenProject.name, roomData: room.toJSON() });
+      }
     } catch { ui.showToast("Не удалось сохранить проект кухни"); }
   }, 800);
 }
