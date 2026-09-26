@@ -81,7 +81,7 @@ async function submit(form, endpoint) {
       if (data.user?.category === "company" && requestedReturn) {
         try {
           const returnUrl = new URL(requestedReturn);
-          if (["http://127.0.0.1:5173", "http://127.0.0.1:5174"].includes(returnUrl.origin)) {
+          if (["http://127.0.0.1:8081", "http://127.0.0.1:8082"].includes(returnUrl.origin)) {
             destination = returnUrl.href;
           }
         } catch {

@@ -1,7 +1,6 @@
 """Запускает все локальные сервисы Mebel Market."""
 
 import os
-import shutil
 import signal
 import socket
 import subprocess
@@ -10,20 +9,11 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-
-
-#TODO: Переписать файл
-'''
-Сделать все так, как сделано в server.py в микросервисе юзеров. Очень много лишнего
-'''
-
-
 ROOT = Path(__file__).resolve().parent
 SERVICE_LABELS = {
     "user": "Пользовательский сайт",
-    "editor-api": "API редактора",
-    "constructor": "Конструктор",
     "editor": "Редактор",
+    "constructor": "Конструктор",
 }
 
 
@@ -46,24 +36,6 @@ class Service:
 
 
 def definitions() -> tuple[Service, ...]:
-    package_manager = shutil.which("pnpm") or shutil.which("npm")
-    if not package_manager:
-        raise RuntimeError(
-            "Не найдены 'pnpm' и 'npm'. Установите Node.js, заново откройте консоль "
-            "и выполните установку frontend-зависимостей из README.md."
-        )
-    vite_arguments = ("--clearScreen", "false", "--logLevel", "warn")
-    if Path(package_manager).stem == "pnpm":
-        run_script = (package_manager, "--silent", "dev", *vite_arguments)
-    else:
-        run_script = (
-            package_manager,
-            "--silent",
-            "run",
-            "dev",
-            "--",
-            *vite_arguments,
-        )
     return (
         Service(
             "user",
@@ -72,19 +44,23 @@ def definitions() -> tuple[Service, ...]:
             "http://127.0.0.1:8080/",
         ),
         Service(
-            "editor-api",
+            "editor",
             ROOT / "services/editor-service",
-            (sys.executable, "-m", "api.server"),
-            "http://127.0.0.1:8081/api/editor/health",
+            (sys.executable, "server.py"),
+            "http://127.0.0.1:8081/editor/",
         ),
-        Service("constructor", ROOT / "services/constructor-service", run_script, "http://127.0.0.1:5173/constructor/"),
-        Service("editor", ROOT / "services/editor-service", run_script, "http://127.0.0.1:5174/editor/"),
+        Service(
+            "constructor",
+            ROOT / "services/constructor-service",
+            (sys.executable, "server.py"),
+            "http://127.0.0.1:8082/constructor/",
+        ),
     )
 
 
 def child_environment() -> dict[str, str]:
     environment = os.environ.copy()
-    values = (str(ROOT / "libs/airqore_orm"), environment.get("PYTHONPATH"))
+    values = (str(ROOT), environment.get("PYTHONPATH"))
     environment["PYTHONPATH"] = os.pathsep.join(value for value in values if value)
     environment["PYTHONUNBUFFERED"] = "1"
     return environment
@@ -100,8 +76,6 @@ def start_service(service: Service) -> subprocess.Popen:
 
 
 def watched_state(service: Service) -> dict[Path, int]:
-    if service.name not in {"user", "editor-api"}:
-        return {}
     extensions = {".py", ".html", ".css", ".js"}
     return {
         path: path.stat().st_mtime_ns
@@ -147,9 +121,8 @@ def main() -> int:
     try:
         print("Запуск сервисов Mebel Market...", flush=True)
         ensure_port_is_free("127.0.0.1", 8080, "пользовательский сервис")
-        ensure_port_is_free("127.0.0.1", 8081, "API редактора")
-        ensure_port_is_free("127.0.0.1", 5173, "конструктор")
-        ensure_port_is_free("127.0.0.1", 5174, "редактор")
+        ensure_port_is_free("127.0.0.1", 8081, "редактор")
+        ensure_port_is_free("127.0.0.1", 8082, "конструктор")
         running: list[list] = []
         print("Локальные адреса:", flush=True)
         for service in definitions():

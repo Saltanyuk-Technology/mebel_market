@@ -1,7 +1,7 @@
 from quart import jsonify, redirect, render_template, request
 
-from modules.auth_old.repository import SessionRepository, UserRepository
-from modules.auth_old.service import get_current_user
+from modules.auth.repository import SessionRepository, UserRepository
+from modules.auth.service import get_current_user
 from .helpers import ROLE, TEMPLATE, can_manage_account
 
 

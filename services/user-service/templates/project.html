@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#211b17"><meta name="color-scheme" content="light">
+    <title>{{ project['name'] }} — Mebel Business</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='company.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='project-workspace.css') }}">
+    <script src="{{ url_for('static', filename='company.js') }}" defer></script>
+  </head>
+  <body class="project-workspace-page">
+    <aside class="sidebar">
+      <a class="logo" href="/company"><i>m</i><span>mebel</span><small>business</small></a>
+      <nav>
+        <a href="/company"><span>←</span>В кабинет</a>
+        <a class="active" href="#overview"><span>□</span>Проект</a>
+        <a href="#rooms"><span>⌂</span>Помещения <b>{{ rooms|length }}</b></a>
+        <a href="#furniture"><span>◇</span>Мебель <b>{{ furniture|length }}</b></a>
+        <a href="#library"><span>▦</span>Библиотека <b>{{ library|length }}</b></a>
+      </nav>
+      <div class="sidebar-bottom"><button id="company-logout" type="button"><span>↪</span>Выйти</button></div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <button id="mobile-menu" class="mobile-menu" type="button" aria-label="Открыть меню">☰</button>
+        <div class="breadcrumbs"><a href="/company">Проекты</a><b>/</b><strong>{{ project['name'] }}</strong></div>
+        <div class="top-actions"><div class="user-avatar">{{ user['firstname'][0] | upper }}{{ user['secondname'][0] | upper }}</div><div class="user-copy"><strong>{{ user['firstname'] }} {{ user['secondname'] }}</strong><small>{{ user['email'] }}</small></div></div>
+      </header>
+
+      <div class="content project-content" id="overview">
+        <section class="project-hero">
+          <div><span>Папка проекта</span><h1>{{ project['name'] }}</h1><p>Помещения отрисовываются отдельно, а мебель проекта доступна для размещения в любой комнате.</p></div>
+          <div class="project-hero-actions"><a href="/company">← Все проекты</a><button id="delete-project" type="button" data-project-id="{{ project['id'] }}" data-room-count="{{ rooms|length }}" data-furniture-count="{{ furniture|length }}">Удалить проект</button></div>
+        </section>
+
+        <section class="project-elements" id="rooms">
+          <div class="project-section-title"><div><span>Файлы конструктора</span><h2>Помещения</h2></div><button id="open-room" type="button">+ Создать помещение</button></div>
+          {% if rooms %}<div class="project-element-grid">{% for room in rooms %}<a class="project-element room-element" href="http://127.0.0.1:8082/constructor/?room={{ room['id'] }}"><span>Помещение</span><h3>{{ room['name'] }}</h3><p>{{ (room['roomData'].get('walls', []))|length }} стен · отдельная сцена расстановки</p><b>Открыть в конструкторе →</b></a>{% endfor %}</div>{% else %}<div class="project-empty"><div>⌂</div><h3>Помещений пока нет</h3><p>Создайте кухню, гостиную или другую комнату. Каждая комната хранит собственную геометрию и расстановку.</p><button id="open-room-empty" type="button" onclick="document.querySelector('#open-room').click()">Создать первое помещение</button></div>{% endif %}
+        </section>
+
+        <section class="project-elements" id="furniture">
+          <div class="project-section-title"><div><span>Файлы редактора</span><h2>Мебель проекта</h2></div><a href="http://127.0.0.1:8081/editor/?new=1&amp;projectId={{ project['id'] }}">+ Создать мебель</a></div>
+          {% if furniture %}<div class="project-element-grid">{% for item in furniture %}<a class="project-element" href="http://127.0.0.1:8081/editor/?project={{ item['id'] }}&amp;projectId={{ project['id'] }}"><span>Мебель проекта</span><h3>{{ item['name'] }}</h3><p>Доступна во всех помещениях этого проекта</p><b>Открыть в редакторе →</b></a>{% endfor %}</div>{% else %}<div class="project-empty"><div>◇</div><h3>Мебели пока нет</h3><p>Создайте новый предмет в редакторе или добавьте независимую копию из библиотеки.</p><a href="http://127.0.0.1:8081/editor/?new=1&amp;projectId={{ project['id'] }}">Создать первую мебель</a></div>{% endif %}
+        </section>
+
+        <section class="project-elements" id="library">
+          <div class="project-section-title"><div><span>Общие шаблоны</span><h2>Библиотека мебели</h2></div></div>
+          {% if library %}<div class="project-element-grid">{% for item in library %}<article class="project-element library-project-element"><span>Библиотечная версия</span><h3>{{ item['name'] }}</h3><p>Добавление создаст независимую копию внутри проекта.</p><div><button type="button" data-copy-library="{{ item['id'] }}" data-project-id="{{ project['id'] }}">Добавить в проект</button><a href="http://127.0.0.1:8081/editor/?project={{ item['definitionId'] }}&amp;libraryItem={{ item['id'] }}">Редактировать оригинал</a></div></article>{% endfor %}</div>{% else %}<div class="project-empty"><div>▦</div><h3>Библиотека пуста</h3><p>Откройте мебель проекта в редакторе и выберите «В библиотеку», чтобы сохранить неизменный снимок.</p></div>{% endif %}
+        </section>
+      </div>
+    </main>
+
+    <div id="room-modal" class="dashboard-modal" hidden>
+      <form id="room-form" data-project-id="{{ project['id'] }}"><span>Новое помещение</span><h2>Создать файл конструктора</h2><label>Название<input id="room-name" maxlength="160" placeholder="Например, Кухня" required></label><p id="room-error" hidden></p><div><button id="cancel-room" type="button">Отмена</button><button type="submit">Создать и открыть</button></div></form>
+    </div>
+  </body>
+</html>

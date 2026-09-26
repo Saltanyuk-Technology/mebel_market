@@ -1,6 +1,6 @@
 from quart import redirect, render_template
 
-from modules.auth_old.service import get_current_user
+from modules.auth.service import get_current_user
 from .helpers import ROLE, TEMPLATE
 
 

@@ -13,7 +13,7 @@
       <a class="logo" href="/company"><i>m</i><span>mebel</span><small>business</small></a>
       <nav>
         <a class="active" href="/company"><span>⌂</span>Обзор</a>
-        <a href="#kitchen-projects"><span>□</span>Проекты <b>{{ kitchen_projects|length }}</b></a>
+        <a href="#projects"><span>□</span>Проекты <b>{{ projects|length }}</b></a>
         <a href="#tools"><span>◇</span>Инструменты</a>
         <a href="#portfolio"><span>▦</span>Портфолио</a>
         <a href="#team"><span>○</span>Команда</a>
@@ -44,7 +44,7 @@
         </section>
 
         <section class="stats" aria-label="Статистика компании">
-          <article><span>Проекты мебели</span><strong>{{ projects|length }}</strong><small>{{ 'Можно продолжить работу' if projects else 'Создайте первый проект' }}</small></article>
+          <article><span>Проекты</span><strong>{{ projects|length }}</strong><small>{{ 'Можно продолжить работу' if projects else 'Создайте первый проект' }}</small></article>
           <article><span>Работы в портфолио</span><strong>0</strong><small>Добавьте выполненные работы</small></article>
           <article><span>Участники команды</span><strong>1</strong><small>Вы можете пригласить коллег</small></article>
         </section>
@@ -52,22 +52,20 @@
         <section class="workspace" id="tools">
           <div class="section-title"><div><span>Рабочее пространство</span><h2>Инструменты компании</h2></div><small>Доступно для роли «Компания»</small></div>
           <div class="tools-grid">
-            <a class="tool-card constructor" href="http://127.0.0.1:5173/constructor/" target="_blank" rel="noopener noreferrer"><div class="tool-icon"><i></i><i></i><i></i></div><span>Планирование</span><h3>Конструктор помещения</h3><p>Создайте план комнаты, задайте размеры стен, окон и проёмов.</p><b>Открыть инструмент →</b></a>
-            <a class="tool-card editor" href="http://127.0.0.1:5174/editor/?new=1" target="_blank" rel="noopener noreferrer"><div class="tool-icon cube"><i></i><i></i><i></i></div><span>Производство</span><h3>Редактор мебели</h3><p>Собирайте мебель из деталей и задавайте точные размеры для производства.</p><b>Открыть инструмент →</b></a>
+            <a class="tool-card constructor" href="http://127.0.0.1:8082/constructor/" target="_blank" rel="noopener noreferrer"><div class="tool-icon"><i></i><i></i><i></i></div><span>Планирование</span><h3>Конструктор помещения</h3><p>Создайте план комнаты, задайте размеры стен, окон и проёмов.</p><b>Открыть инструмент →</b></a>
+            <a class="tool-card editor" href="http://127.0.0.1:8081/editor/?new=1" target="_blank" rel="noopener noreferrer"><div class="tool-icon cube"><i></i><i></i><i></i></div><span>Производство</span><h3>Редактор мебели</h3><p>Собирайте мебель из деталей и задавайте точные размеры для производства.</p><b>Открыть инструмент →</b></a>
             <article class="tool-card locked"><div class="tool-icon">＋</div><span>Скоро</span><h3>Каталог компании</h3><p>Управление товарами, материалами и мебельными коллекциями.</p><b>В разработке</b></article>
           </div>
         </section>
 
-        <section class="recent" id="kitchen-projects">
-          <div class="section-title"><div><span>Полный цикл</span><h2>Проекты кухни</h2></div><button id="open-kitchen-project" class="new-project-link" type="button">Создать проект кухни</button></div>
-          {% if kitchen_projects %}<div class="kitchen-projects">{% for kitchen in kitchen_projects %}<article class="kitchen-project"><span>Проект кухни</span><h3>{{ kitchen['name'] }}</h3><p>{{ kitchen['furniture_count'] }} элементов мебели</p><div class="kitchen-project-actions"><a class="primary-project-action" href="/company/kitchen-projects/{{ kitchen['id'] }}">Открыть проект →</a></div></article>{% endfor %}</div>{% else %}<div class="empty-projects compact-empty"><div>⌂</div><h3>Создайте первый проект кухни</h3><p>Внутри будут храниться помещение, отдельные шкафы и их расстановка.</p></div>{% endif %}
+        <section class="recent" id="projects">
+          <div class="section-title"><div><span>Рабочие папки</span><h2>Мои проекты</h2></div><button id="open-project" class="new-project-link" type="button">Создать проект</button></div>
+          {% if projects %}<div class="kitchen-projects">{% for project in projects %}<a class="kitchen-project" href="/company/projects/{{ project['id'] }}"><span>Проект</span><h3>{{ project['name'] }}</h3><p>{{ project['roomCount'] }} помещений · {{ project['furnitureCount'] }} элементов мебели</p><span class="primary-project-action">Открыть проект →</span></a>{% endfor %}</div>{% else %}<div class="empty-projects compact-empty"><div>□</div><h3>Создайте первый проект</h3><p>Внутри проекта можно создавать несколько помещений, мебель, расстановки и будущие производственные объекты.</p></div>{% endif %}
         </section>
-
-        <section class="recent" id="projects"><div class="section-title"><div><span>Проекты</span><h2>Мои проекты мебели</h2></div><a class="new-project-link" href="http://127.0.0.1:5174/editor/?new=1" target="_blank" rel="noopener noreferrer">Создать мебель</a></div>{% if projects %}<div class="furniture-projects">{% for project in projects %}<a class="furniture-project" href="http://127.0.0.1:5174/editor/?project={{ project['id'] }}" target="_blank" rel="noopener noreferrer"><span>Мебель</span><h3>{{ project['name'] }}</h3><p>Версия {{ project['latestRevisionId'][:8] if project['latestRevisionId'] else 'не сохранена' }}</p><b>Открыть в редакторе →</b></a>{% endfor %}</div>{% else %}<div class="empty-projects"><div>□</div><h3>Проектов пока нет</h3><p>Создайте отдельный корпус или полноценную модель мебели.</p><div><a href="http://127.0.0.1:5173/constructor/" target="_blank" rel="noopener noreferrer">Создать помещение</a><a href="http://127.0.0.1:5174/editor/?new=1" target="_blank" rel="noopener noreferrer">Создать мебель</a></div></div>{% endif %}</section>
       </div>
     </main>
-    <div id="kitchen-project-modal" class="dashboard-modal" hidden>
-      <form id="kitchen-project-form"><span>Новый проект</span><h2>Создать проект кухни</h2><label>Название<input id="kitchen-project-name" maxlength="160" placeholder="Например, Кухня Лариса" required></label><p id="kitchen-project-error" hidden></p><div><button id="cancel-kitchen-project" type="button">Отмена</button><button type="submit">Создать и открыть</button></div></form>
+    <div id="project-modal" class="dashboard-modal" hidden>
+      <form id="project-form"><span>Новый проект</span><h2>Создать папку проекта</h2><label>Название<input id="project-name" maxlength="160" placeholder="Например, Дом Анны" required></label><p id="project-error" hidden></p><div><button id="cancel-project" type="button">Отмена</button><button type="submit">Создать и открыть</button></div></form>
     </div>
   </body>
 </html>

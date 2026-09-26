@@ -54,24 +54,43 @@ class EditorClient:
             raise EditorApiError(status, payload.get("error", "editor_api_error"))
         return payload
 
-    async def list_kitchens(self, cookie):
-        return (await self.request("GET", "/api/editor/kitchens", cookie)).get("kitchens", [])
+    async def list_projects(self, cookie):
+        return (await self.request("GET", "/api/editor/projects", cookie)).get("projects", [])
 
-    async def get_kitchen(self, project_id, cookie):
-        return await self.request("GET", f"/api/editor/kitchens/{project_id}", cookie)
+    async def get_project(self, project_id, cookie):
+        return await self.request("GET", f"/api/editor/projects/{project_id}", cookie)
 
-    async def create_kitchen(self, data, cookie):
-        return await self.request("POST", "/api/editor/kitchens", cookie, data)
+    async def create_project(self, data, cookie):
+        return await self.request("POST", "/api/editor/projects", cookie, data)
 
-    async def update_kitchen(self, project_id, data, cookie):
-        return await self.request("PUT", f"/api/editor/kitchens/{project_id}", cookie, data)
+    async def update_project(self, project_id, data, cookie):
+        return await self.request("PUT", f"/api/editor/projects/{project_id}", cookie, data)
 
-    async def delete_kitchen(self, project_id, cookie):
-        return await self.request("DELETE", f"/api/editor/kitchens/{project_id}", cookie)
+    async def delete_project(self, project_id, cookie):
+        return await self.request("DELETE", f"/api/editor/projects/{project_id}", cookie)
 
-    async def list_definitions(self, cookie, kitchen_project_id=None):
-        suffix = f"?kitchenProjectId={kitchen_project_id}" if kitchen_project_id else ""
-        return (await self.request("GET", f"/api/editor/definitions{suffix}", cookie)).get("definitions", [])
+    async def create_room(self, project_id, data, cookie):
+        return await self.request(
+            "POST", f"/api/editor/projects/{project_id}/rooms", cookie, data
+        )
+
+    async def list_project_definitions(self, project_id, cookie):
+        return (
+            await self.request(
+                "GET", f"/api/editor/definitions?projectId={project_id}", cookie
+            )
+        ).get("definitions", [])
+
+    async def list_library(self, cookie):
+        return (await self.request("GET", "/api/editor/library", cookie)).get("items", [])
+
+    async def copy_library_to_project(self, item_id, project_id, cookie):
+        return await self.request(
+            "POST",
+            f"/api/editor/library/{item_id}/copy-to-project",
+            cookie,
+            {"projectId": str(project_id)},
+        )
 
 
 editor_client = EditorClient()

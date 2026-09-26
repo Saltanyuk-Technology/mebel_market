@@ -7,13 +7,17 @@ import sys
 from pathlib import Path
 
 import asyncpg
+from airqore_orm.config import load_dotenv
 
+
+ROOT = Path(__file__).resolve().parent
+load_dotenv(ROOT / ".env")
 
 # ---- БАЗОВЫЕ НАСТРОЙКИ КОННЕКТА ----
-DB_HOST = "localhost"
-DB_NAME = "mebel_market"
-DB_USER = "postgres"
-DB_PASSWORD = "ynrzc3iv-14"  # при необходимости поменяй
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_NAME = os.getenv("DB_NAME", "mebel_market")
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
 
 def resolve_postgres_tool(

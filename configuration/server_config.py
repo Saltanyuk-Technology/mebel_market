@@ -1,22 +1,15 @@
+import os
+from pathlib import Path
+
 from airqore_orm import ORM, ORMConfig
 from airqore_orm.config import load_dotenv
 
-''' Файл конфигурации Базы Данных и подключений'''
-
-load_dotenv(".env")
+ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(ROOT / ".env")
 orm = ORM(config=ORMConfig.from_env())
 
-import os
-
-HOST = os.getenv('SERVER_HOST')
-PORT = int(os.getenv('SERVER_PORT'))
-SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
-COOKIE_SECURE = 'false'
+HOST = os.getenv("SERVER_HOST", "127.0.0.1")
+PORT = int(os.getenv("SERVER_PORT", "8080"))
+SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "development-secret")
+COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
 SESSION_MAX_AGE = 14 * 24 * 60 * 60
-
-USER_SERVICE_URL = os.getenv('USER_SERVICE_URL')
-
-
-
-
-
