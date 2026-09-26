@@ -6,7 +6,7 @@ from airqore_orm.integrations.quart import install_orm
 from configuration.server_config import orm
 from configuration.server_config import SECRET_KEY, HOST, PORT
 from modules.admin_profile.controller import controller as admin_profile_controller
-from modules.auth.controller import controller as auth_controller
+from modules.auth_old.controller import controller as auth_controller
 from modules.company_profile.controller import controller as company_profile_controller
 from modules.platform.controller import controller as platform_controller
 from modules.user_profile.controller import controller as user_profile_controller

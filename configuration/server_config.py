@@ -14,6 +14,8 @@ SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
 COOKIE_SECURE = 'false'
 SESSION_MAX_AGE = 14 * 24 * 60 * 60
 
+USER_SERVICE_URL = os.getenv('USER_SERVICE_URL')
+
 
 
 

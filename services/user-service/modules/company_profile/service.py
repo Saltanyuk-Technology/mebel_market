@@ -3,7 +3,7 @@ import asyncio
 from quart import redirect, render_template, request
 
 from editor_client import EditorApiError, editor_client
-from modules.auth.service import get_current_user
+from modules.auth_old.service import get_current_user
 from .helpers import ROLE, TEMPLATE
 
 

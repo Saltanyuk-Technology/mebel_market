@@ -1,7 +1,7 @@
 from quart import jsonify, redirect, render_template
 
 from database import orm
-from modules.auth.service import get_current_user
+from modules.auth_old.service import get_current_user
 from .helpers import dashboard_for
 
 

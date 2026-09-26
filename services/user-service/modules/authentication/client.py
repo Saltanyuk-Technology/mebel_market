@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from ..configuration import USER_SERVICE_URL
+from configuration.server_config import USER_SERVICE_URL #! 
 
 
 @dataclass(frozen=True)
@@ -20,11 +20,14 @@ class AuthError(Exception):
         self.code = code
 
 
-def _request_json(url: str, cookie_header: str) -> tuple[int, dict]:
+#? Перенести на уровень репозитрия – как взаимодейтсвие с другим микросервисом
+def request_json(url: str, cookie_header: str):
+
     request = Request(url, headers={"Cookie": cookie_header, "Accept": "application/json"})
     try:
         with urlopen(request, timeout=5) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
+        
     except HTTPError as error:
         try:
             payload = json.loads(error.read().decode("utf-8"))
@@ -36,11 +39,11 @@ def _request_json(url: str, cookie_header: str) -> tuple[int, dict]:
 
 
 async def default_transport(url: str, cookie_header: str) -> tuple[int, dict]:
-    return await asyncio.to_thread(_request_json, url, cookie_header)
+    return await asyncio.to_thread(request_json, url, cookie_header)
 
 
 class AuthClient:
-    def __init__(self, base_url: str = USER_SERVICE_URL, transport=None):
+    def __init__(self, base_url: str = USER_SERVICE_URL, transport=None): #! 
         self.base_url = base_url.rstrip("/")
         self.transport = transport or default_transport
 

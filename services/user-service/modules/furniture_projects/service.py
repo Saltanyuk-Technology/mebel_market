@@ -4,7 +4,7 @@ import uuid
 from quart import jsonify, request
 
 from database import orm
-from modules.auth.service import get_current_user
+from modules.auth_old.service import get_current_user
 from .helpers import default_project_name, project_json
 
 

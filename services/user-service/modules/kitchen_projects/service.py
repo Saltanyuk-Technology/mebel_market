@@ -1,7 +1,7 @@
 from quart import jsonify, request
 
 from editor_client import EditorApiError, editor_client
-from modules.auth.service import get_current_user
+from modules.auth_old.service import get_current_user
 
 
 async def current_company():
