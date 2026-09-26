@@ -98,7 +98,7 @@ class ModelRegistry:
 model_registry = ModelRegistry()
 
 
-def _collect_model_declarations(name, bases, attrs):
+def collect_model_declarations(name, bases, attrs):
     fields = {}
     relations = {}
     invalid_fields = {}
@@ -173,7 +173,7 @@ def _build_model_options(model, name, meta_cls, fields, relations, invalid_field
 class ModelMeta(type):
     def __new__(mcls, name, bases, attrs):
         meta_cls = attrs.get("Meta")
-        fields, relations, invalid_fields = _collect_model_declarations(name, bases, attrs)
+        fields, relations, invalid_fields = collect_model_declarations(name, bases, attrs)
         cls = super().__new__(mcls, name, bases, attrs)
         if name == "Model" and cls.__module__ == __name__:
             return cls
