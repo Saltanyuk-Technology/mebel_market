@@ -34,6 +34,7 @@ async def get_current_user():
 
 
 async def register():
+    
     data = await request.get_json(silent=True) or {}
     email = str(data.get("email") or "").strip().lower()
     password = str(data.get("password") or "")

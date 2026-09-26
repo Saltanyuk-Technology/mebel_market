@@ -28,11 +28,11 @@ class ModelOptions:
         self.name = name
         self.table_name = table_name
         self.schema = schema
-        self.fields = fields or {}
-        self.relations = relations or {}
+        self.fields = fields
+        self.relations = relations
         self.primary_key = primary_key
         self.columns = tuple(columns)
-        self.column_to_field = column_to_field or {}
+        self.column_to_field = column_to_field
         self.invalid_fields = invalid_fields or {}
         self.meta = meta
         self.table_name_was_inferred = table_name_was_inferred
