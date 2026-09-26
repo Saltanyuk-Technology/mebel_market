@@ -2,7 +2,9 @@
 import asyncio
 import argparse
 import os
+import shutil
 import sys
+from pathlib import Path
 
 import asyncpg
 
@@ -12,6 +14,50 @@ DB_HOST = "localhost"
 DB_NAME = "mebel_market"
 DB_USER = "postgres"
 DB_PASSWORD = "ynrzc3iv-14"  # при необходимости поменяй
+
+
+def resolve_postgres_tool(
+    configured_path: str,
+    *,
+    program_files_roots: list[Path] | None = None,
+    path_lookup=shutil.which,
+) -> str:
+    """Находит утилиту PostgreSQL в PATH или стандартной папке Windows."""
+    resolved = path_lookup(configured_path)
+    if resolved:
+        return resolved
+
+    configured = Path(configured_path)
+    if configured.is_file():
+        return str(configured)
+
+    if configured.parent != Path("."):
+        raise SystemExit(f'Программа PostgreSQL "{configured_path}" не найдена.')
+
+    executable = configured.name
+    if not executable.lower().endswith(".exe"):
+        executable += ".exe"
+
+    if program_files_roots is None:
+        program_files_roots = [
+            Path(value)
+            for variable in ("ProgramFiles", "ProgramFiles(x86)")
+            if (value := os.environ.get(variable))
+        ]
+
+    candidates: list[Path] = []
+    for root in program_files_roots:
+        candidates.extend(root.glob(f"PostgreSQL/*/bin/{executable}"))
+        candidates.extend(root.glob(f"PostgreSQL/*/pgAdmin 4/runtime/{executable}"))
+
+    if candidates:
+        return str(sorted(candidates, reverse=True)[0])
+
+    raise SystemExit(
+        f'Программа PostgreSQL "{configured_path}" не найдена. '
+        "Установите PostgreSQL Command Line Tools, добавьте папку bin в PATH "
+        "или укажите полный путь соответствующим параметром."
+    )
 
 
 async def check_connection(host: str, db: str, user: str, password: str) -> None:
@@ -95,6 +141,7 @@ async def dump_sql(
     """
     Делает plain-SQL дамп через pg_dump в файл sql_file.
     """
+    pg_dump_path = resolve_postgres_tool(pg_dump_path)
     sys.stdout.write(
         f'Делаю SQL дамп БД "{db}" в "{sql_file}" через {pg_dump_path}...\n'
     )
@@ -136,6 +183,7 @@ async def load_sql(
     if not os.path.exists(sql_file):
         raise SystemExit(f'Файл "{sql_file}" не найден.')
 
+    psql_path = resolve_postgres_tool(psql_path)
     await ensure_database_exists(host, db, user, password)
 
     sys.stdout.write(
