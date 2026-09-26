@@ -10,6 +10,14 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+
+
+#TODO: Переписать файл
+'''
+Сделать все так, как сделано в server.py в микросервисе юзеров. Очень много лишнего
+'''
+
+
 ROOT = Path(__file__).resolve().parent
 SERVICE_LABELS = {
     "user": "Пользовательский сайт",
