@@ -1,16 +1,18 @@
 import argparse
 import asyncio
 import getpass
-
 from passlib.context import CryptContext
+from configuration import orm
 
-from database import orm
-
+''' Функциональность создания администратора
+#? Требует подключения к основной логике
+# '''
 
 password_context = CryptContext(schemes=["bcrypt_sha256"], deprecated="auto")
 
+async def create_admin(email: str, firstname: str, secondname: str, password: str):
 
-async def create_admin(email: str, firstname: str, secondname: str, password: str) -> None:
+    # Установка подключения к БД
     await orm.startup()
     try:
         password_hash = await asyncio.to_thread(password_context.hash, password)
@@ -20,20 +22,5 @@ async def create_admin(email: str, firstname: str, secondname: str, password: st
             email.strip().lower(), password_hash, firstname.strip(), secondname.strip(),
         )
     finally:
+        # Закрытие подключения к БД
         await orm.shutdown()
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Create a Mebel Market administrator")
-    parser.add_argument("email")
-    parser.add_argument("firstname")
-    parser.add_argument("secondname")
-    args = parser.parse_args()
-    password = getpass.getpass("Password (minimum 8 characters): ")
-    if len(password) < 8:
-        raise SystemExit("Password is too short")
-    asyncio.run(create_admin(args.email, args.firstname, args.secondname, password))
-
-
-if __name__ == "__main__":
-    main()
