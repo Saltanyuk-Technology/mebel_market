@@ -141,7 +141,7 @@ function renderProjectFurniture() {
     document.getElementById("placement-z").value = selected.zMm;
     document.getElementById("placement-rotation").value = selected.rotationY;
     const editLink = document.getElementById("edit-furniture");
-    editLink.href = `http://127.0.0.1:8081/editor/?project=${selected.definitionId}&projectId=${activeRoom.projectId}`;
+    editLink.href = `http://localhost:8081/editor/?project=${selected.definitionId}&projectId=${activeRoom.projectId}`;
     const update = document.getElementById("update-furniture");
     update.hidden = true;
   }
@@ -176,11 +176,11 @@ async function loadProjectRoom() {
     projectFurniture = loaded.definitions;
     placements = loaded.instances;
     if (Array.isArray(activeRoom.roomData?.walls)) room.restore(activeRoom.roomData);
-    const projectHome = `http://127.0.0.1:8080/company/projects/${activeRoom.projectId}`;
+    const projectHome = `http://localhost:8080/company/projects/${activeRoom.projectId}`;
     const navigationLinks = document.querySelectorAll(".platform-actions a");
     navigationLinks[0].href = projectHome;
     navigationLinks[0].textContent = "← В проект";
-    navigationLinks[1].href = `http://127.0.0.1:8081/editor/?new=1&projectId=${activeRoom.projectId}`;
+    navigationLinks[1].href = `http://localhost:8081/editor/?new=1&projectId=${activeRoom.projectId}`;
     const title = document.getElementById("kitchen-project-title");
     title.textContent = activeRoom.name;
     title.hidden = false;

@@ -15,9 +15,9 @@ from quart import Quart, Response, jsonify, redirect, render_template, request
 
 
 SERVICE_ROOT = Path(__file__).resolve().parent
-USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://127.0.0.1:8080").rstrip("/")
-EDITOR_SERVICE_URL = os.getenv("EDITOR_SERVICE_URL", "http://127.0.0.1:8081").rstrip("/")
-CONSTRUCTOR_HOST = os.getenv("CONSTRUCTOR_HOST", "127.0.0.1")
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8080").rstrip("/")
+EDITOR_SERVICE_URL = os.getenv("EDITOR_SERVICE_URL", "http://localhost:8081").rstrip("/")
+CONSTRUCTOR_HOST = os.getenv("CONSTRUCTOR_HOST", "0.0.0.0")
 CONSTRUCTOR_PORT = int(os.getenv("CONSTRUCTOR_PORT", "8082"))
 
 

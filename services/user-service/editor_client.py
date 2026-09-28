@@ -5,7 +5,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
-EDITOR_API_URL = os.getenv("EDITOR_API_URL", "http://127.0.0.1:8081").rstrip("/")
+EDITOR_API_URL = os.getenv("EDITOR_API_URL", "http://localhost:8081").rstrip("/")
 
 
 class EditorApiError(Exception):

@@ -24,9 +24,9 @@ def editor_database_config() -> ORMConfig:
     ).validate()
 
 
-EDITOR_API_HOST = os.getenv("EDITOR_API_HOST", "127.0.0.1")
+EDITOR_API_HOST = os.getenv("EDITOR_API_HOST", "0.0.0.0")
 EDITOR_API_PORT = int(os.getenv("EDITOR_API_PORT", "8081"))
-USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://127.0.0.1:8080").rstrip("/")
+USER_SERVICE_URL = os.getenv("USER_SERVICE_URL", "http://localhost:8080").rstrip("/")
 
 
 def hypercorn_config() -> Config:

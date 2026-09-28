@@ -54,7 +54,7 @@ document.querySelector("#room-form")?.addEventListener("submit", async (event) =
     });
     if (!response.ok) throw new Error();
     const room = await response.json();
-    window.location.href = `http://127.0.0.1:8082/constructor/?room=${room.id}`;
+    window.location.href = `http://localhost:8082/constructor/?room=${room.id}`;
   } catch {
     error.textContent = "Не удалось создать помещение. Попробуйте ещё раз.";
     error.hidden = false;

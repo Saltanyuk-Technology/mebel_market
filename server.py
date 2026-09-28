@@ -41,19 +41,19 @@ def definitions() -> tuple[Service, ...]:
             "user",
             ROOT / "services/user-service",
             (sys.executable, "server.py"),
-            "http://127.0.0.1:8080/",
+            "http://localhost:8080/",
         ),
         Service(
             "editor",
             ROOT / "services/editor-service",
             (sys.executable, "server.py"),
-            "http://127.0.0.1:8081/editor/",
+            "http://localhost:8081/editor/",
         ),
         Service(
             "constructor",
             ROOT / "services/constructor-service",
             (sys.executable, "server.py"),
-            "http://127.0.0.1:8082/constructor/",
+            "http://localhost:8082/constructor/",
         ),
     )
 
